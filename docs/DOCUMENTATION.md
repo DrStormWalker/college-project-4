@@ -64,12 +64,32 @@ as colliding with a player.
 
 ### A2 - Stakeholders
 
-| Stakeholder | Descriptions | Role | Stakeholder Needs / Requirements* How they will use the system |
-|-------------|--------------|------|----------------------------------------------------------------|
-|             |              |      |                                                                |
-
+| Stakeholder    | Descriptions | Role | Stakeholder Needs / Requirements* How they will use the system |
+|----------------|--------------|------|----------------------------------------------------------------|
+| Miles Ray      |              |      |                                                                |
+| Kristian Dunn  |              |      |                                                                |
+| Oliver Kendall |              |      |                                                                |
 
 ### A3 - Research
+
+- Pico Park
+  - Only certain players can move certain objects
+  - Timer to encourage fast thinking
+  - Not all 'death' objects restart level
+  - Ability for players to climb onto one another
+  - Size changing
+  - Endless mode
+  - Different player need to do different tasks in parallel with each other
+  - Ability to block player's movement
+- Portal 2
+  - Different players are locked into different sections
+  - Player launcher to force good timing on players
+  - Lots of different ways to achieve the same goal
+  - Many different objects (Laser redirection, cubes, turrets, etc.)
+  - Objects needed to complete the level also hinder the player(s)
+  - Ability to kill/trap other players (to increase enjoyment)
+  - Narrator trying to pose the players against one another
+  - Gestures/emotes to enable people to communicate non-verbally
 
 ### A4 - Essential Features
 
@@ -106,3 +126,15 @@ I will be using Git for version control and GitHub as a cloud storage for the pr
 as they integrate nicely together as well as with the two editors I am using.
 
 ### A7 - Success Criteria
+
+   
+1. Local and Online Multiplayer - Justification: this enables people to play the game
+   on a single device if there is no access to two devices but also remotely without
+   the use of applications like Steam Remote Play which requires a good internet
+   connection for a playable experience.
+2. Player can move left/right along the screen, jump up to reach platforms and climb
+   onto the head of other player's characters - Justification: This simple movement
+   allows for intuitive control over the player and also gives the player freedom to
+   move around the levels easily. Allowing the player to jump ono each other enables
+   for lots of unique puzzles to be made.
+3. Players can move or pick up certain objects - Justification: 
