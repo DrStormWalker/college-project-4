@@ -1,76 +1,95 @@
-extern crate glutin_window;
-extern crate graphics;
-extern crate opengl_graphics;
-extern crate piston;
+mod components;
+mod systems;
+mod resources;
 
-use glutin_window::GlutinWindow as Window;
-use opengl_graphics::{GlGraphics, OpenGL};
-use piston::event_loop::{EventSettings, Events};
-use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
-use piston::window::WindowSettings;
+extern crate sdl2;
+extern crate specs;
 
-pub struct App {
-    gl: GlGraphics, // OpenGL drawing backend.
-    rotation: f64,  // Rotation for the square.
-}
+use std::borrow::Borrow;
+use std::time::{Duration, Instant};
+use sdl2::event::Event;
+use sdl2::keyboard::Keycode;
+use sdl2::libc::{RTF_REINSTATE, wchar_t};
+use sdl2::pixels::Color;
+use sdl2::rect::{Point, Rect};
+use sdl2::render::Canvas;
+use specs::{ Builder, DispatcherBuilder, World, WorldExt };
+use crate::{ components::Position, systems::RenderSystem };
+use crate::components::{Acceleration, Grounded, PlayerController, RenderDescriptor, Velocity, VelocityLimit};
+use crate::resources::{GameState, SystemState};
+use crate::systems::{PlayerMovementSystem, EntityMovementSystem, EventSystem};
 
-impl App {
-    fn render(&mut self, args: &RenderArgs) {
-        use graphics::*;
+fn main() -> Result<(), String> {
+    let sdl_context = sdl2::init()?;
+    let video_subsystem = sdl_context.video()?;
 
-        const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
-        const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
-
-        let square = rectangle::square(0.0, 0.0, 50.0);
-        let rotation = self.rotation;
-        let (x, y) = (args.window_size[0] / 2.0, args.window_size[1] / 2.0);
-
-        self.gl.draw(args.viewport(), |c, gl| {
-            // Clear the screen.
-            clear(GREEN, gl);
-
-            let transform = c
-                .transform
-                .trans(x, y)
-                .rot_rad(rotation)
-                .trans(-25.0, -25.0);
-
-            // Draw a box rotating around the middle of the screen.
-            rectangle(RED, square, transform, gl);
-        });
-    }
-
-    fn update(&mut self, args: &UpdateArgs) {
-        // Rotate 2 radians per second.
-        self.rotation += 2.0 * args.dt;
-    }
-}
-
-fn main() {
-    // Change this to OpenGL::V2_1 if not working.
-    let opengl = OpenGL::V3_2;
-
-    // Create an Glutin window.
-    let mut window: Window = WindowSettings::new("spinning-square", [200, 200])
-        .graphics_api(opengl)
-        .exit_on_esc(false)
+    let window = video_subsystem
+        .window("Team Platformer", 800, 600)
+        .position_centered()
+        .vulkan()
         .build()
-        .unwrap();
+        .map_err(|e| e.to_string())?;
 
-    // Create a new game and run it.
-    let mut app = App {
-        gl: GlGraphics::new(opengl),
-        rotation: 0.0,
-    };
+    let mut canvas = window
+        .into_canvas()
+        .build()
+        .map_err(|e| e.to_string())?;
 
-    let mut events = Events::new(EventSettings::new());
-    while let Some(e) = events.next(&mut window) {
-        if let Some(args) = e.render_args() {
-            app.render(&args);
+    let mut world = World::new();
+
+    canvas.set_draw_color(Color::RGB(0, 0, 0));
+    canvas.clear();
+    canvas.present();
+
+    let event_pump = sdl_context.event_pump()?;
+
+    let mut dispatcher = DispatcherBuilder::new()
+        .with(PlayerMovementSystem {}, "sys_player_movement", &[])
+        .with(EntityMovementSystem {}, "sys_entity_movement", &[])
+        .with_thread_local(EventSystem::new(event_pump))
+        .with_thread_local(RenderSystem::new(canvas))
+        .build();
+
+    dispatcher.setup(&mut world);
+
+    world.insert(GameState::new(SystemState::Running));
+
+    world
+        .create_entity()
+        .with(Position { x: 0.0, y: 120.0 })
+        .with(Velocity { x: 0.0, y: 0.0 })
+        //.with(VelocityLimit { x: f32::MIN..f32::MAX, y: -4.0..f32::MAX })
+        .with(Acceleration { x: 0.0, y: 0.0 })
+        .with(RenderDescriptor::new(
+            Rect::new(0, 0, 20, 20),
+            Color::RGB(255, 0, 0))
+        )
+        .with(PlayerController {})
+        .with(Grounded(true))
+        .build();
+
+    let mut start = Instant::now();
+
+    loop {
+        let now = Instant::now();
+        let delta_t = (now - start).as_secs_f32();
+        start = now;
+
+        {
+            let mut game_state = world.write_resource::<GameState>();
+            game_state.delta_t = delta_t;
         }
 
-        if let Some(args) = e.update_args() {
-            app.update(&args);
+        dispatcher.dispatch(&mut world);
+        {
+            let game_state = world.read_resource::<GameState>();
+            if let SystemState::Quit = game_state.system_state {
+                break;
+            }
         }
+        world.maintain();
+        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 144));
     }
+
+    Ok(())
 }
