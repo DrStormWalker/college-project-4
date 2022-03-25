@@ -1,6 +1,7 @@
 mod components;
 mod systems;
 mod resources;
+mod util;
 
 extern crate sdl2;
 extern crate specs;
@@ -11,13 +12,14 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::libc::{RTF_REINSTATE, wchar_t};
 use sdl2::pixels::Color;
-use sdl2::rect::{Point, Rect};
+use sdl2::rect::Point;
 use sdl2::render::Canvas;
 use specs::{ Builder, DispatcherBuilder, World, WorldExt };
 use crate::{ components::Position, systems::RenderSystem };
-use crate::components::{Acceleration, Grounded, PlayerController, RenderDescriptor, Velocity, VelocityLimit};
+use crate::components::{Acceleration, Grounded, PlayerController, RenderDescriptor, Velocity};
 use crate::resources::{GameState, SystemState};
 use crate::systems::{PlayerMovementSystem, EntityMovementSystem, EventSystem};
+use crate::util::Rect;
 
 fn main() -> Result<(), String> {
     let sdl_context = sdl2::init()?;
@@ -58,10 +60,9 @@ fn main() -> Result<(), String> {
         .create_entity()
         .with(Position { x: 0.0, y: 120.0 })
         .with(Velocity { x: 0.0, y: 0.0 })
-        //.with(VelocityLimit { x: f32::MIN..f32::MAX, y: -4.0..f32::MAX })
         .with(Acceleration { x: 0.0, y: 0.0 })
         .with(RenderDescriptor::new(
-            Rect::new(0, 0, 20, 20),
+            Rect::new(0.0, 0.0, 5.0, 5.0),
             Color::RGB(255, 0, 0))
         )
         .with(PlayerController {})

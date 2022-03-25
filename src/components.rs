@@ -1,7 +1,8 @@
 use std::ops::{Range, RangeBounds, RangeFull};
 use sdl2::pixels::Color;
-use sdl2::rect::{Point, Rect};
+use sdl2::rect::Point;
 use specs::{Component, System, VecStorage };
+use crate::util::Rect;
 
 #[derive(Debug, PartialEq)]
 pub struct Position {
@@ -27,15 +28,6 @@ pub struct Acceleration {
     pub y: f32,
 }
 impl Component for Acceleration {
-    type Storage = VecStorage<Self>;
-}
-
-#[derive(Debug, PartialEq)]
-pub struct VelocityLimit {
-    pub x: Range<f32>,
-    pub y: Range<f32>,
-}
-impl Component for VelocityLimit {
     type Storage = VecStorage<Self>;
 }
 
@@ -70,5 +62,25 @@ impl Component for RenderDescriptor {
 #[derive(Debug, PartialEq)]
 pub struct PlayerController;
 impl Component for PlayerController {
+    type Storage = VecStorage<Self>;
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Collider {
+    pub aabb: Rect,
+}
+impl Component for Collider {
+    type Storage = VecStorage<Self>;
+}
+
+#[derive(Debug, PartialEq)]
+pub struct FloorCollider;
+impl Component for FloorCollider {
+    type Storage = VecStorage<Self>;
+}
+
+#[derive(Debug, PartialEq)]
+pub struct FloorCollision;
+impl Component for FloorCollision {
     type Storage = VecStorage<Self>;
 }
