@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 specs = "0.17.0"
 sdl2 = "0.35.2"
+nalgebra = "0.30.1"

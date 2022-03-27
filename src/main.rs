@@ -16,10 +16,10 @@ use sdl2::rect::Point;
 use sdl2::render::Canvas;
 use specs::{ Builder, DispatcherBuilder, World, WorldExt };
 use crate::{ components::Position, systems::RenderSystem };
-use crate::components::{Acceleration, Grounded, PlayerController, RenderDescriptor, Velocity};
+use crate::components::{Acceleration, Collider, FloorCollider, FloorCollision, Grounded, PlayerController, RenderDescriptor, Velocity};
 use crate::resources::{GameState, SystemState};
-use crate::systems::{PlayerMovementSystem, EntityMovementSystem, EventSystem};
-use crate::util::Rect;
+use crate::systems::{PlayerMovementSystem, EntityMovementSystem, EventSystem, FloorColliderSystem};
+use crate::util::{Rect, Vec2};
 
 fn main() -> Result<(), String> {
     let sdl_context = sdl2::init()?;
@@ -39,6 +39,9 @@ fn main() -> Result<(), String> {
 
     let mut world = World::new();
 
+    world.register::<FloorCollision>();
+    world.register::<FloorCollider>();
+
     canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
     canvas.present();
@@ -48,6 +51,7 @@ fn main() -> Result<(), String> {
     let mut dispatcher = DispatcherBuilder::new()
         .with(PlayerMovementSystem {}, "sys_player_movement", &[])
         .with(EntityMovementSystem {}, "sys_entity_movement", &[])
+        .with(FloorColliderSystem {}, "sys_floor_collision", &[])
         .with_thread_local(EventSystem::new(event_pump))
         .with_thread_local(RenderSystem::new(canvas))
         .build();
@@ -56,17 +60,33 @@ fn main() -> Result<(), String> {
 
     world.insert(GameState::new(SystemState::Running));
 
+    const PLAYER_WIDTH: f32 = 5.0;
+    const PLAYER_HEIGHT: f32 = 5.0;
+
     world
         .create_entity()
-        .with(Position { x: 0.0, y: 120.0 })
-        .with(Velocity { x: 0.0, y: 0.0 })
-        .with(Acceleration { x: 0.0, y: 0.0 })
+        .with(Position(Vec2::new(0.0, 0.0)))
+        .with(Velocity(Vec2::new(0.0, 0.0)))
+        .with(Acceleration(Vec2::new(0.0, 0.0)))
         .with(RenderDescriptor::new(
-            Rect::new(0.0, 0.0, 5.0, 5.0),
+            Rect::from_size(Vec2::new(0.0, 0.0), PLAYER_WIDTH, PLAYER_HEIGHT),
             Color::RGB(255, 0, 0))
         )
-        .with(PlayerController {})
         .with(Grounded(true))
+        .with(PlayerController {})
+        .with(Collider::from_rect(Rect::from_size(Vec2::new(0.0, 0.0), PLAYER_WIDTH, PLAYER_HEIGHT)))
+        .with(FloorCollision {})
+        .build();
+
+    world
+        .create_entity()
+        .with(Position(Vec2::new(0.0, 160.0)))
+        .with(RenderDescriptor::new(
+            Rect::from_size(Vec2::new(0.0, 0.0), 800.0 / 4.0, 50.0),
+            Color::RGB(0, 255, 0),
+        ))
+        .with(Collider::from_rect(Rect::from_size(Vec2::new(0.0, 0.0), 800.0 / 4.0, 50.0)))
+        .with(FloorCollider {})
         .build();
 
     let mut start = Instant::now();

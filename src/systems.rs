@@ -1,4 +1,5 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
+use nalgebra::max;
 use sdl2::event::Event;
 use sdl2::EventPump;
 use sdl2::keyboard::Keycode;
@@ -8,6 +9,7 @@ use specs::{AccessorCow, Join, ParJoin, Read, ReadStorage, RunningTime, System, 
 use crate::components::{Acceleration, Collider, FloorCollider, FloorCollision, PlayerController, RenderDescriptor, Velocity};
 use crate::{GameState, Grounded, Position, Rect, wchar_t, World};
 use crate::resources::SystemState;
+use crate::util::Vec2;
 
 pub struct RenderSystem {
     canvas: WindowCanvas,
@@ -31,12 +33,10 @@ impl<'a> System<'a> for RenderSystem {
 
         let (position, descriptor) = data;
         for (pos, desc) in (&position, &descriptor).join() {
-            println!("{:?}", pos);
-
             self.canvas.set_draw_color(desc.colour());
             let rect = desc.rectangle()
-                .enlarged(4.0, 4.0)
-                .shifted(pos.x * 4.0, pos.y * 4.0)
+                .enlarged(Vec2::new(4.0, 4.0))
+                .shifted(pos.0 * 4.0)
                 .into_sdl2_rect();
             match self.canvas.fill_rect(rect) {
                 Err(e) => eprintln!("{}", e),
@@ -105,13 +105,11 @@ impl<'a> System<'a> for EntityMovementSystem {
         let dt = game_state.delta_t;
 
         for (vel, accel) in (&mut velocity, &acceleration).join() {
-            vel.x += accel.x * dt;
-            vel.y += accel.y * dt;
+            vel.0 += accel.0 * dt;
         }
 
         for (pos, vel) in (&mut position, &velocity).join() {
-            pos.x += vel.x * dt;
-            pos.y += vel.y * dt;
+            pos.0 += vel.0 * dt;
         }
     }
 }
@@ -146,14 +144,6 @@ impl<'a> System<'a> for PlayerMovementSystem {
             &mut grounded,
             &player_controlled
         ).join() {
-            if pos.y >= 120.0 {
-                ground.0 = true;
-            }
-            if pos.y + vel.y * game_state.delta_t > 120.0 {
-                vel.y = 0.0;
-                accel.y = 0.0;
-                pos.y = 120.0;
-            }
             let mut vx = 0.0f32;
             for key in &game_state.keys_held {
                 use Keycode::*;
@@ -161,28 +151,26 @@ impl<'a> System<'a> for PlayerMovementSystem {
                     A => vx += -80.0,
                     D => vx += 80.0,
                     W | Space if ground.0 => {
-                        vel.y = -360.0;
-                        accel.y = 960.0 * 1.8;
+                        vel.0.y = -360.0;
+                        accel.0.y = 960.0 * 1.8;
                         ground.0 = false;
                     }
                     _ => {},
                 }
             }
-            vel.x = vx;
+            vel.0.x = vx;
         }
     }
 }
 
 pub struct FloorColliderSystem;
-impl FloorColliderSystem {
-    fn gjk_support(a: &Rect, b: &Rect, direction)
-}
 impl<'a> System<'a> for FloorColliderSystem {
     type SystemData = (
         WriteStorage<'a, Position>,
         WriteStorage<'a, Velocity>,
         WriteStorage<'a, Acceleration>,
         WriteStorage<'a, Collider>,
+        WriteStorage<'a, Grounded>,
         ReadStorage<'a, FloorCollision>,
         ReadStorage<'a, FloorCollider>,
         Read<'a, GameState>,
@@ -195,6 +183,7 @@ impl<'a> System<'a> for FloorColliderSystem {
             velocity,
             acceleration,
             collider,
+            grounded,
             floor_collision,
             floor_collider,
             game_state,
@@ -202,11 +191,32 @@ impl<'a> System<'a> for FloorColliderSystem {
 
         let dt = game_state.delta_t;
 
-        for (pos, vel, accel, player_collider, _) in (&position, &velocity, &acceleration, &collider, &floor_collision).join() {
+        for (
+            pos,
+            vel,
+            accel,
+            player_collider,
+            ground,
+            _,
+        ) in (
+            &position,
+            &velocity,
+            &acceleration,
+            &collider,
+            &grounded,
+            &floor_collision
+        ).join() {
             for (floor_pos, floor_collider, _) in (&position, &collider, &floor_collider).join() {
-                let intersecting = player_collider.aabb
-                    .shifted(pos.x + vel.x * dt, pos.y + vel.y * dt)
-                    .intersecting(&floor_collider.aabb);
+                let intersecting = Collider::test_collision(
+                    player_collider.shape(),
+                    pos.0,
+                    floor_collider.shape(),
+                    floor_pos.0,
+                );
+
+                if intersecting {
+                    println!("Intersection {}", intersecting);
+                }
             }
         }
     }

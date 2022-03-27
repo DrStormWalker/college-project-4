@@ -16,9 +16,8 @@
 
 ## TODO
 
-- [ ] Basic Rendering
-- [ ] Collisions
-- [ ] Spikes
+- [x] Basic Rendering
+- [x] Collisions
 - [ ] Intractable objects
 - [ ] Platforms
 - [ ] Levels
@@ -127,14 +126,16 @@ as they integrate nicely together as well as with the two editors I am using.
 
 ### A7 - Success Criteria
 
-   
-1. Local and Online Multiplayer - Justification: this enables people to play the game
-   on a single device if there is no access to two devices but also remotely without
-   the use of applications like Steam Remote Play which requires a good internet
-   connection for a playable experience.
-2. Player can move left/right along the screen, jump up to reach platforms and climb
-   onto the head of other player's characters - Justification: This simple movement
+1. Player can move left/right along the screen, jump up to reach platforms and climb
+   onto the head of other players' characters - Justification: This simple movement
    allows for intuitive control over the player and also gives the player freedom to
    move around the levels easily. Allowing the player to jump ono each other enables
    for lots of unique puzzles to be made.
-3. Players can move or pick up certain objects - Justification: 
+2. Players can interact with levers and buttons to make certain platforms appear and
+   doors open - Justification: this can be used to force players to make certain choices
+   that can prevent them from solving the puzzle forcing them to have to think outside the
+   box to find the solution
+3. Local and Online Multiplayer - Justification: this enables people to play the game
+   on a single device if there is no access to two devices but also remotely without
+   the use of applications like Steam Remote Play which requires a good internet
+   connection for a playable experience.
