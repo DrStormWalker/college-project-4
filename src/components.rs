@@ -1,12 +1,14 @@
+use std::collections::HashMap;
 use std::ops::{Range, RangeBounds, RangeFull};
+use sdl2::libc::wait;
 use sdl2::pixels::Color;
 use sdl2::rect::Point;
-use specs::{Component, System, VecStorage };
+use specs::{Component, Entity, System, VecStorage};
 use crate::util::{Polygon, Rect};
 use crate::{Vec2, wchar_t};
-use crate::components::gjk::gjk_test_collision;
+use crate::gjk::GJK;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Position(pub Vec2);
 impl Component for Position {
     type Storage = VecStorage<Self>;
@@ -18,9 +20,36 @@ impl Component for Velocity {
     type Storage = VecStorage<Self>;
 }
 
+pub const GAME_GRAVITATIONAL_CONSTANT: f32 = -190.0;
+
+#[derive(PartialEq, Hash)]
+pub enum ForceSource {
+    Constant(usize),
+    Entity(Entity),
+}
+
 #[derive(Debug, PartialEq)]
-pub struct Acceleration(pub Vec2);
-impl Component for Acceleration {
+pub struct Physics {
+    pub acceleration: Vec2,
+    pub forces: HashMap<ForceSource, Vec2>,
+    pub mass: usize,
+}
+impl Physics {
+    pub fn new(mass: usize) -> Self {
+        let mut forces = HashMap::new();
+        forces.insert(ForceSource::Constant(0), Vec2::new(0.0, mass * GAME_GRAVITATIONAL_CONSTANT));
+        Self {
+            acceleration: Vec2::zeros(),
+            mass,
+            forces,
+        }
+    }
+
+    pub fn acceleration(&self) -> Vec2 {
+        self.acceleration
+    }
+}
+impl Component for Physics {
     type Storage = VecStorage<Self>;
 }
 
@@ -58,114 +87,6 @@ impl Component for PlayerController {
     type Storage = VecStorage<Self>;
 }
 
-mod gjk {
-    /* https://blog.hamaluik.ca/posts/building-a-collision-engine-part-2-2d-penetration-vectors/ */
-    use std::collections::VecDeque;
-    use nalgebra::Vector3;
-    use crate::util::{Polygon};
-    use crate::{Vec2, wchar_t};
-
-    struct CollisionObject<T> {
-        pos: Vec2,
-        collider: T,
-    }
-
-    #[derive(PartialEq)]
-    enum EvolutionResult {
-        NoIntersection,
-        FoundIntersection,
-        StillEvolving,
-    }
-
-    fn add_support(
-        a: &Polygon,
-        a_pos: Vec2,
-        b: &Polygon,
-        b_pos: Vec2,
-        vertices: &mut Vec<Vec2>,
-        direction: Vec2,
-    ) -> bool {
-        let vertex = (a.support(direction) + a_pos) - (b.support(-direction) + b_pos);
-        vertices.push(vertex);
-        direction.dot(&vertex) > 0.0
-    }
-
-    fn triple_product(a: Vec2, b: Vec2, c: Vec2) -> Vec2 {
-        Vector3::<f32>::new(a.x, a.y, 0.0)
-            .cross(&Vector3::<f32>::new(b.x, b.y, 0.0))
-            .cross(&Vector3::<f32>::new(c.x, c.y, 0.0))
-            .xy()
-    }
-
-    fn evolve_simplex(
-        a: &Polygon,
-        a_pos: Vec2,
-        b: &Polygon,
-        b_pos: Vec2,
-        vertices: &mut Vec<Vec2>,
-        direction: &mut Vec2
-    ) -> EvolutionResult {
-        match vertices.len() {
-            0 => {
-                *direction = b_pos - a_pos;
-            },
-            1 => {
-                *direction = -*direction;
-            }
-            2 => {
-                let a = vertices[1];
-                let b = vertices[0];
-
-                let ab = b - a;
-                let oa = -a;
-
-                *direction = triple_product(ab, oa, ab);
-            },
-            3 => {
-                let a = vertices[2];
-                let b = vertices[1];
-                let c = vertices[0];
-
-                let ab = b - a;
-                let ac = c - a;
-                let oa = -a;
-
-                let ab_perpendicular = triple_product(ac, ab, ab);
-                let ac_perpendicular = triple_product(ab, ac, ac);
-
-                if ab_perpendicular.dot(&oa) > 0.0 {
-                    vertices.remove(0);
-                    *direction = ab_perpendicular;
-                } else if ac_perpendicular.dot(&oa) > 0.0 {
-                    vertices.remove(1);
-                    *direction = ac_perpendicular;
-                } else {
-                    return EvolutionResult::FoundIntersection;
-                }
-            },
-            _ => panic!("BUG ALERT! GJK")
-        }
-
-        if add_support(a, a_pos, b, b_pos, vertices, *direction) {
-            EvolutionResult::StillEvolving
-        } else {
-            EvolutionResult::NoIntersection
-        }
-    }
-
-    pub fn gjk_test_collision(a: &Polygon, a_pos: Vec2, b: &Polygon, b_pos: Vec2) -> bool {
-        let mut vertices = Vec::with_capacity(3);
-        let mut direction = Vec2::default();
-
-        let mut result = EvolutionResult::StillEvolving;
-        while let EvolutionResult::StillEvolving = result {
-            result = evolve_simplex(a, a_pos, b, b_pos, &mut vertices, &mut direction)
-        }
-
-        result == EvolutionResult::FoundIntersection
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub struct Collider {
     shape: Polygon,
@@ -190,8 +111,12 @@ impl Collider {
         &self.shape
     }
 
-    pub fn test_collision(a: &Polygon, a_pos: Vec2, b: &Polygon, b_pos: Vec2) -> bool {
-        gjk_test_collision(a, a_pos, b, b_pos)
+    pub fn find_intersection(a: &Polygon, a_pos: Vec2, b: &Polygon, b_pos: Vec2) -> Option<Vec2> {
+        use crate::gjk::GJK;
+
+        let mut gjk = GJK::new(a, a_pos, b, b_pos);
+
+        gjk.find_intersection()
     }
 }
 impl Component for Collider {

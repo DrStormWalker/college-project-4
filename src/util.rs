@@ -4,7 +4,7 @@ use crate::wchar_t;
 
 pub type Vec2 = Vector2<f32>;
 
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug, Default)]
 pub struct Rect {
     top_left: Vec2,
     bottom_right: Vec2
@@ -17,7 +17,13 @@ impl Rect {
     pub fn from_size(top_left: Vec2, width: f32, height: f32) -> Self {
         Self {
             top_left,
-            bottom_right: top_left + Vec2::new(width, height),
+            bottom_right: top_left + Vec2::new(width, -height),
+        }
+    }
+    pub fn from_centre(centre: Vec2, width: f32, height: f32) -> Self {
+        Self {
+            top_left: centre + Vec2::new(-width, height) / 2.0,
+            bottom_right: centre + Vec2::new(width, -height) / 2.0,
         }
     }
 
@@ -29,9 +35,9 @@ impl Rect {
     pub fn top_left(&self) -> Vec2 { self.top_left }
     pub fn bottom_right(&self) -> Vec2 { self.bottom_right }
     pub fn top_right(&self) -> Vec2 { Vec2::new(self.bottom_right.x, self.top_left.y) }
-    pub fn bottom_left(&self) -> Vec2 { Vec2::new(self.top_left.x, self.bottom_right.y) }
+    pub fn bottom_left(&self) -> Vec2 { Vec2::new(self.bottom_right.x, self.top_left.y) }
 
-    pub fn width(&self) -> f32 { self.top_left.x - self.bottom_right.x }
+    pub fn width(&self) -> f32 { self.bottom_right.x - self.top_left.x }
     pub fn height(&self) -> f32 { self.top_left.y - self.bottom_right.y }
 
     pub fn verticies(&self) -> [Vec2; 4] {

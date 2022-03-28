@@ -5,9 +5,9 @@ use sdl2::EventPump;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::render::{Canvas, WindowCanvas};
-use specs::{AccessorCow, Join, ParJoin, Read, ReadStorage, RunningTime, System, Write, WriteExpect, WriteStorage};
-use crate::components::{Acceleration, Collider, FloorCollider, FloorCollision, PlayerController, RenderDescriptor, Velocity};
-use crate::{GameState, Grounded, Position, Rect, wchar_t, World};
+use specs::{AccessorCow, Entities, Join, ParJoin, Read, ReadStorage, RunningTime, System, Write, WriteExpect, WriteStorage};
+use crate::components::{Collider, FloorCollider, FloorCollision, Physics, PlayerController, RenderDescriptor, Velocity};
+use crate::{GameCamera, GameState, Grounded, Position, Rect, wchar_t, World};
 use crate::resources::SystemState;
 use crate::util::Vec2;
 
@@ -23,6 +23,7 @@ impl<'a> System<'a> for RenderSystem {
     type SystemData = (
         ReadStorage<'a, Position>,
         ReadStorage<'a, RenderDescriptor>,
+        Read<'a, GameCamera>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
@@ -31,16 +32,19 @@ impl<'a> System<'a> for RenderSystem {
         self.canvas.set_draw_color(Color::RGB(0, 0, 0));
         self.canvas.clear();
 
-        let (position, descriptor) = data;
+        let (
+            position,
+            descriptor,
+            camera,
+        ) = data;
+
         for (pos, desc) in (&position, &descriptor).join() {
             self.canvas.set_draw_color(desc.colour());
-            let rect = desc.rectangle()
-                .enlarged(Vec2::new(4.0, 4.0))
-                .shifted(pos.0 * 4.0)
-                .into_sdl2_rect();
-            match self.canvas.fill_rect(rect) {
-                Err(e) => eprintln!("{}", e),
-                _ => {},
+            if let Some(rect) = camera.try_process_rect(pos.0, desc.rectangle()) {
+                match self.canvas.fill_rect(rect) {
+                    Err(e) => eprintln!("{}", e),
+                    _ => {},
+                }
             }
         }
         self.canvas.present();
@@ -88,7 +92,7 @@ impl<'a> System<'a> for EntityMovementSystem {
     type SystemData = (
         WriteStorage<'a, Position>,
         WriteStorage<'a, Velocity>,
-        WriteStorage<'a, Acceleration>,
+        WriteStorage<'a, Physics>,
         Read<'a, GameState>,
     );
 
@@ -98,14 +102,19 @@ impl<'a> System<'a> for EntityMovementSystem {
         let (
             mut position,
             mut velocity,
-            mut acceleration,
+            mut physics,
             game_state,
         ) = data;
 
         let dt = game_state.delta_t;
 
-        for (vel, accel) in (&mut velocity, &acceleration).join() {
-            vel.0 += accel.0 * dt;
+        for physics in (&mut physics).join() {
+            let f = physics.forces.iter().sum::<Vec2>();
+            physics.acceleration = f / physics.mass;
+        }
+
+        for (vel, physics) in (&mut velocity, &physics).join() {
+            vel.0 += physics.acceleration * dt;
         }
 
         for (pos, vel) in (&mut position, &velocity).join() {
@@ -119,7 +128,7 @@ impl<'a> System<'a> for PlayerMovementSystem {
     type SystemData = (
         WriteStorage<'a, Position>,
         WriteStorage<'a, Velocity>,
-        WriteStorage<'a, Acceleration>,
+        WriteStorage<'a, Physics>,
         WriteStorage<'a, Grounded>,
         ReadStorage<'a, PlayerController>,
         Read<'a, GameState>,
@@ -131,16 +140,14 @@ impl<'a> System<'a> for PlayerMovementSystem {
         let (
             mut position,
             mut velocity,
-            mut acceleration,
             mut grounded,
             player_controlled,
             game_state
         ) = data;
 
-        for (pos, vel, accel, ground, _) in (
+        for (pos, vel, ground, _) in (
             &mut position,
             &mut velocity,
-            &mut acceleration,
             &mut grounded,
             &player_controlled
         ).join() {
@@ -148,11 +155,10 @@ impl<'a> System<'a> for PlayerMovementSystem {
             for key in &game_state.keys_held {
                 use Keycode::*;
                 match key {
-                    A => vx += -80.0,
-                    D => vx += 80.0,
+                    A => vx += -8.0,
+                    D => vx += 8.0,
                     W | Space if ground.0 => {
-                        vel.0.y = -360.0;
-                        accel.0.y = 960.0 * 1.8;
+                        vel.0.y = 50.0;
                         ground.0 = false;
                     }
                     _ => {},
@@ -168,54 +174,65 @@ impl<'a> System<'a> for FloorColliderSystem {
     type SystemData = (
         WriteStorage<'a, Position>,
         WriteStorage<'a, Velocity>,
-        WriteStorage<'a, Acceleration>,
+        WriteStorage<'a, Physics>,
         WriteStorage<'a, Collider>,
         WriteStorage<'a, Grounded>,
         ReadStorage<'a, FloorCollision>,
         ReadStorage<'a, FloorCollider>,
         Read<'a, GameState>,
+        Entities<'a>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
         use specs::Join;
         let (
-            position,
+            mut position,
             velocity,
-            acceleration,
+            physics,
             collider,
             grounded,
             floor_collision,
             floor_collider,
             game_state,
+            entities,
         ) = data;
 
         let dt = game_state.delta_t;
 
-        for (
-            pos,
+        'objects: for (
+            colliding,
             vel,
-            accel,
+            physics,
             player_collider,
             ground,
             _,
         ) in (
-            &position,
+            &entities,
             &velocity,
-            &acceleration,
+            &physics,
             &collider,
             &grounded,
             &floor_collision
         ).join() {
-            for (floor_pos, floor_collider, _) in (&position, &collider, &floor_collider).join() {
-                let intersecting = Collider::test_collision(
+            'floors: for (floor, floor_collider, _) in (&entities, &collider, &floor_collider).join() {
+                let floor_pos = if let Some(pos) = position.get(floor) { *pos } else { continue 'floors };
+                let obj_pos = if let Some(pos) = position.get_mut(colliding) {
+                    pos
+                } else {
+                    continue 'objects
+                };
+
+                let intersection = Collider::find_intersection(
                     player_collider.shape(),
-                    pos.0,
+                    obj_pos.0 + vel.0 * dt,
                     floor_collider.shape(),
                     floor_pos.0,
                 );
 
-                if intersecting {
-                    println!("Intersection {}", intersecting);
+                if let Some(intersection) = intersection {
+                    println!("{:?} {:?}", obj_pos.0, intersection);
+                    obj_pos.0 += intersection - vel.0 * dt;
+                    physics.forces.ins
                 }
             }
         }

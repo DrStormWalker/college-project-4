@@ -2,6 +2,7 @@ mod components;
 mod systems;
 mod resources;
 mod util;
+mod gjk;
 
 extern crate sdl2;
 extern crate specs;
@@ -16,8 +17,8 @@ use sdl2::rect::Point;
 use sdl2::render::Canvas;
 use specs::{ Builder, DispatcherBuilder, World, WorldExt };
 use crate::{ components::Position, systems::RenderSystem };
-use crate::components::{Acceleration, Collider, FloorCollider, FloorCollision, Grounded, PlayerController, RenderDescriptor, Velocity};
-use crate::resources::{GameState, SystemState};
+use crate::components::{Collider, FloorCollider, FloorCollision, Grounded, PlayerController, RenderDescriptor, Velocity};
+use crate::resources::{GameCamera, GameState, SystemState};
 use crate::systems::{PlayerMovementSystem, EntityMovementSystem, EventSystem, FloorColliderSystem};
 use crate::util::{Rect, Vec2};
 
@@ -59,9 +60,17 @@ fn main() -> Result<(), String> {
     dispatcher.setup(&mut world);
 
     world.insert(GameState::new(SystemState::Running));
+    world.insert(GameCamera::new(
+        (800, 600),
+        Vec2::new(0.0, 0.0),
+        Rect::new(
+            Vec2::new(-16.0, 12.0),
+            Vec2::new(16.0, -12.0),
+        ),
+    ));
 
-    const PLAYER_WIDTH: f32 = 5.0;
-    const PLAYER_HEIGHT: f32 = 5.0;
+    const PLAYER_WIDTH: f32 = 1.0;
+    const PLAYER_HEIGHT: f32 = 1.0;
 
     world
         .create_entity()
@@ -69,23 +78,23 @@ fn main() -> Result<(), String> {
         .with(Velocity(Vec2::new(0.0, 0.0)))
         .with(Acceleration(Vec2::new(0.0, 0.0)))
         .with(RenderDescriptor::new(
-            Rect::from_size(Vec2::new(0.0, 0.0), PLAYER_WIDTH, PLAYER_HEIGHT),
+            Rect::from_centre(Vec2::new(0.0, 0.0), PLAYER_WIDTH, PLAYER_HEIGHT),
             Color::RGB(255, 0, 0))
         )
         .with(Grounded(true))
         .with(PlayerController {})
-        .with(Collider::from_rect(Rect::from_size(Vec2::new(0.0, 0.0), PLAYER_WIDTH, PLAYER_HEIGHT)))
+        .with(Collider::from_rect(Rect::from_centre(Vec2::new(0.0, 0.0), PLAYER_WIDTH, PLAYER_HEIGHT)))
         .with(FloorCollision {})
         .build();
 
     world
         .create_entity()
-        .with(Position(Vec2::new(0.0, 160.0)))
+        .with(Position(Vec2::new(-16.0, -10.0)))
         .with(RenderDescriptor::new(
-            Rect::from_size(Vec2::new(0.0, 0.0), 800.0 / 4.0, 50.0),
+            Rect::from_size(Vec2::new(0.0, 0.0), 32.0, 2.0),
             Color::RGB(0, 255, 0),
         ))
-        .with(Collider::from_rect(Rect::from_size(Vec2::new(0.0, 0.0), 800.0 / 4.0, 50.0)))
+        .with(Collider::from_rect(Rect::from_size(Vec2::new(0.0, 0.0), 32.0, 2.0)))
         .with(FloorCollider {})
         .build();
 
