@@ -2,7 +2,7 @@
 
 ## Contents
 
-1. [Todo / Success Criteria](#todo--success-criteria)
+1. [Todo](#todo)
 2. [Goal](#goal)
     - [Why am I Making This Game?](#why-am-i-making-this-game)
 3. [Analysis](#analysis)
@@ -62,14 +62,14 @@ certain criteria such as colliding with a player.
 
 ### A2 - Stakeholders
 
-| Stakeholder           | Descriptions | Role                                                                                                                                 | Stakeholder Needs / Requirements* How they will use the system |
-|-----------------------|--------------|--------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------|
-| Miles Ray             |              | WIll be focusing on game robustness (Will be trying to find bugs / use cheats during multiplayer gameplay)                           |                                                                |
-| Kristian Dunn         |              | Novice (Has not played puzzle platformer games before)                                                                               |                                                                |
+| Stakeholder           | Descriptions | Role                                                                                                                                | Stakeholder Needs / Requirements* How they will use the system |
+|-----------------------|--------------|-------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------|
+| Miles Ray             |              | WIll be focusing on game robustness (Will be trying to find bugs / use cheats during multiplayer gameplay)                          |                                                                |
+| Kristian Dunn         |              | Novice (Has not played puzzle platformer games before)                                                                              |                                                                |
 | Oliver Kendall        |              | Will be focusing on usability features in the game (such as ability to use an XBox/Playstation controller or use of a dyslexic font) |                                                                |
-| Ned Brooker           |              | WIll be focusing on the features of the game (Are the levels fun, does there need to be more features)                               |                                                                |
-| Ollie McCandlish      |              | Expert (Has played many different types of puzzle platformer games)                                                                  |                                                                |
-| Oscar Hitchcock-Smith |              | Expert (Has played many different types of puzzle platformer games)                                                                  |                                                                |
+| Ned Brooker           |              | WIll be focusing on the features of the game (Are the levels fun, does there need to be more features)                              |                                                                |
+| Ollie McCandlish      |              | Expert (Has played many different types of puzzle / platformer games)                                                               |                                                                |
+| Oscar Hitchcock-Smith |              | Expert (Has played many different types of puzzle / platformer games)                                                               |                                                                |
 
 ### A3 - Research
 
@@ -132,11 +132,32 @@ certain criteria such as colliding with a player.
       While there is one intended route to the exit there often is one or more alternative routes
       that can be taken to reach the exit, this pushes the players towards a specific route, whilst
       still allowing them some freedom to complete the level how they like.
-    - Many different objects (Laser redirection, cubes, turrets, etc.)
-    - Objects needed to complete the level also hinder the player(s)
-    - Ability to kill/trap other players (to increase enjoyment)
-    - Narrator trying to pose the players against one another
-    - Gestures/emotes to enable people to communicate non-verbally
+    - Many different objects (Laser redirection, cubes, turrets, etc.): <br/>
+      items can be picked up by the player and will interact with the player and other objects
+      within the level, for example a laser redirection cube will reflect lasers that are directed
+      into it in the direction it is facing, cubes can be placed on buttons to allow for the button
+      to be pressed even if the player is not standing on the button, turrets try to kill the player
+      if the player is standing within their line of sight, forcing the players to navigate around,
+      the turret's line of sight in order to deactivate it. I will be adding cubes that can be
+      pushed onto buttons, as it allows for the players to trigger events even when they are not
+      near the button.
+    - Ability to kill/trap other players: <br/>
+      players can trap each other into certain parts of the map or dropped to their death by other
+      players. This adds a trust element into the game as players may want to mess around in this
+      way annoying each other whilst still having fun. I will not be trying to implement this
+      feature, however games of this style normally have the ability to mess around in this kind of
+      way due to the nature of the game mechanics, and I will not be trying to prevent this.
+    - Narrator trying to pose the players against one another: <br/>
+      While the players are trying to work through the levels a narrator (called 'GLADOS') makes
+      remarks that add a story element to the game
+      (The players are robots trying to find humans) as well as providing funny comments on the
+      performance and capability of each of the players. I will not be adding this feature as I do
+      not want to add a story element to my game. In addition, making a narrator react to the
+      players' actions is a very hard task.
+    - Gestures/emotes to enable people to communicate non-verbally: <br/>
+      If two players are playing together without any sort of verbal communication (Not on a voice
+      call), then they can use the in game gestures and chat to communicate with each other how to
+      solve the puzzle as well as when to activate a certain event (e.g. press a button).
 
 ### A4 - Essential Features
 
@@ -175,8 +196,10 @@ integrate nicely together as well as with the two editors I am using.
 1. Players can move left/right along the screen using 'S' and 'D' or the left and right arrows, jump
    up to reach platforms using Space and climb onto the head of other players' characters to reach
    the room's exit - Justification: This simple movement allows for intuitive control over the
-   player and also gives the player freedom to move around the levels easily. Allowing the player to
-   jump ono each other enables for lots of unique paths to the exit to be made.
+   player and also gives the player freedom to move around the levels easily to reach the exit. The
+   players will also be able to jump onto one another, allowing them to access platforms that are
+   used to reach the exit that would normally be too high for them to jump to without using another
+   player for a boost.
 2. Players will collide with objects in the level that are used as platforms - Justification: This
    prevents the players from falling indefinitely as well as blocks off / opens up new paths to get
    the room's exit. For example an exit could be placed too far off the ground for the player to
@@ -184,18 +207,28 @@ integrate nicely together as well as with the two editors I am using.
    to access the exit.
 3. Players will be able to move through certain objects that are coloured to match their character -
    Justification: This enables certain paths to be blocked off / opened up to certain players
-   separating the players to work on their own tasks to reach the exit. For example a button could
-   be hidden behind a coloured wall to prevent one of the players from pressing the button forcing
-   them to work on another part of the level.
-4. Players can interact with levers and buttons (by pressing the 'E' key on the keyboard or
-   'X'/square button on an XBox/Playstation controller) that are placed throughout the rooms to make
-   certain platforms appear and doors open giving the players access to new areas that are vital to
-   reaching the room's exit - Justification: this can be used to prevent players from solving the
-   puzzle in an obvious and easy way (such as just jumping up to the exit), forcing the players to
-   have to come up with a new plan to reach the exit. For example Using a button to reach a
-   previously inaccessible areas of the screen platform that then allows the players to jump up to
-   the exit.
-5. Local multiplayer (2 players on the same computer) and Online Multiplayer (2 players playing
+   separating the players to work on their own tasks that once completed work in conjunction with
+   the tasks another player has been completed to enable the players to then reach the exit. For
+   example a button could be hidden behind a coloured wall to prevent one of the players from
+   pressing the button forcing them to work on another part of the level while the player that is
+   colour correctly can coma and press the button.
+4. Players can interact with levers (by pressing the 'E' key on the keyboard or
+   'X'/square button on an XBox/Playstation controller) and buttons (by walking over them) that are
+   placed throughout the room according to a layout defined in the games code to make certain
+   platforms appear and doors open giving the players access to new areas that are vital to reaching
+   the room's exit - Justification: this can be used to prevent players from solving the puzzle in
+   an obvious and easy way (such as just jumping up to the exit), forcing the players to have to
+   come up with a new plan to reach the exit. For example Using a button to reach a previously
+   inaccessible areas of the screen platform that then allows the players to jump up to the exit.
+5. Players can move boxes throughout the levels by walking into them and colliding with them in
+   order to keep a button held down or to use as an intermediate platform in order to access
+   platforms of greater height than the players can normally jump - Justification: This allows for
+   players to open up an area of the map without having to be constantly stood on top of a button.
+   For example a button could be used to open a door with a box and the exit behind it, one player
+   would have to stand on the button while the other player walks through the door and pushes the
+   box onto the button allowing for the first player to then move off the button, and finally
+   allowing both players through the door to access the exit.
+6. Local multiplayer (2 players on the same computer) and Online Multiplayer (2 players playing
    across the internet) using UDP Tunnelling - Justification: this enables people to play the game
    on a single device if there is no access to two devices but also remotely without the use of
    applications like Steam Remote Play which requires a good internet connection for a playable
@@ -205,7 +238,7 @@ integrate nicely together as well as with the two editors I am using.
    a direct connection between computers without the use of port forwarding, which normally requires
    skill to set up safely. The use of UDP Tunneling also means that only a rendezvous server needs
    to be created.
-6. Players can access a settings menu to change the audio volume of the game, change which keys are
+7. Players can access a settings menu to change the audio volume of the game, change which keys are
    used for input, e.g. the interaction input could be changed from 'E' to 'Q', change which
    language the game menu is in / use a dyslexic font, change whether the game is played in
    fullscreen or in 'windowed' mode - Justification: Players may find that they do not want to
@@ -214,7 +247,7 @@ integrate nicely together as well as with the two editors I am using.
    layout, this would allow them to use a key that is more comfortable to them allowing more players
    to play the game. Players of a different nationality or players that are dyslexic to play the
    game more easily without having to learn English or struggle to read the text.
-7. Players can unlock different characters to play as and change their character's sprite to match
+8. Players can unlock different characters to play as and change their character's sprite to match
    their play style, giving a sense of personality - Justification: This gives players a sense of
    progression as well as a goal to strive for while playing the game, many ga,es use achievements
    to encourage players to keep playing the game to collect all the achievements, characters will be
