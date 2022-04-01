@@ -6,9 +6,10 @@ use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::render::{Canvas, WindowCanvas};
 use specs::{AccessorCow, Entities, Join, ParJoin, Read, ReadStorage, RunningTime, System, Write, WriteExpect, WriteStorage};
-use crate::components::{Collider, FloorCollider, FloorCollision, Physics, PlayerController, RenderDescriptor, Velocity};
+use crate::components::{Acceleration, Collider, FloorCollider, FloorCollision, PlayerController, RenderDescriptor, Velocity};
 use crate::{GameCamera, GameState, Grounded, Position, Rect, wchar_t, World};
 use crate::resources::SystemState;
+use crate::sat::intersection;
 use crate::util::Vec2;
 
 pub struct RenderSystem {
@@ -92,7 +93,8 @@ impl<'a> System<'a> for EntityMovementSystem {
     type SystemData = (
         WriteStorage<'a, Position>,
         WriteStorage<'a, Velocity>,
-        WriteStorage<'a, Physics>,
+        WriteStorage<'a, Acceleration>,
+        WriteStorage<'a, Grounded>,
         Read<'a, GameState>,
     );
 
@@ -102,19 +104,23 @@ impl<'a> System<'a> for EntityMovementSystem {
         let (
             mut position,
             mut velocity,
-            mut physics,
+            mut accel,
+            mut grounded,
             game_state,
         ) = data;
 
         let dt = game_state.delta_t;
 
-        for physics in (&mut physics).join() {
-            let f = physics.forces.iter().sum::<Vec2>();
-            physics.acceleration = f / physics.mass;
+        for (accel) in (&mut accel).join() {
+            accel.0.y = -130.0;
         }
 
-        for (vel, physics) in (&mut velocity, &physics).join() {
-            vel.0 += physics.acceleration * dt;
+        for (ground) in (&mut grounded).join() {
+            ground.0 = false;
+        }
+
+        for (vel, accel) in (&mut velocity, &accel).join() {
+            vel.0 += accel.0 * dt;
         }
 
         for (pos, vel) in (&mut position, &velocity).join() {
@@ -128,7 +134,6 @@ impl<'a> System<'a> for PlayerMovementSystem {
     type SystemData = (
         WriteStorage<'a, Position>,
         WriteStorage<'a, Velocity>,
-        WriteStorage<'a, Physics>,
         WriteStorage<'a, Grounded>,
         ReadStorage<'a, PlayerController>,
         Read<'a, GameState>,
@@ -155,10 +160,10 @@ impl<'a> System<'a> for PlayerMovementSystem {
             for key in &game_state.keys_held {
                 use Keycode::*;
                 match key {
-                    A => vx += -8.0,
-                    D => vx += 8.0,
+                    A => vx += -12.0,
+                    D => vx += 12.0,
                     W | Space if ground.0 => {
-                        vel.0.y = 50.0;
+                        vel.0.y = 40.0;
                         ground.0 = false;
                     }
                     _ => {},
@@ -174,7 +179,7 @@ impl<'a> System<'a> for FloorColliderSystem {
     type SystemData = (
         WriteStorage<'a, Position>,
         WriteStorage<'a, Velocity>,
-        WriteStorage<'a, Physics>,
+        WriteStorage<'a, Acceleration>,
         WriteStorage<'a, Collider>,
         WriteStorage<'a, Grounded>,
         ReadStorage<'a, FloorCollision>,
@@ -187,10 +192,10 @@ impl<'a> System<'a> for FloorColliderSystem {
         use specs::Join;
         let (
             mut position,
-            velocity,
-            physics,
+            mut velocity,
+            mut acceleration,
             collider,
-            grounded,
+            mut grounded,
             floor_collision,
             floor_collider,
             game_state,
@@ -202,16 +207,16 @@ impl<'a> System<'a> for FloorColliderSystem {
         'objects: for (
             colliding,
             vel,
-            physics,
+            accel,
             player_collider,
             ground,
             _,
         ) in (
             &entities,
-            &velocity,
-            &physics,
+            &mut velocity,
+            &mut acceleration,
             &collider,
-            &grounded,
+            &mut grounded,
             &floor_collision
         ).join() {
             'floors: for (floor, floor_collider, _) in (&entities, &collider, &floor_collider).join() {
@@ -222,17 +227,33 @@ impl<'a> System<'a> for FloorColliderSystem {
                     continue 'objects
                 };
 
-                let intersection = Collider::find_intersection(
+                let intersection = intersection(
                     player_collider.shape(),
-                    obj_pos.0 + vel.0 * dt,
+                    obj_pos.0,
                     floor_collider.shape(),
                     floor_pos.0,
                 );
 
-                if let Some(intersection) = intersection {
-                    println!("{:?} {:?}", obj_pos.0, intersection);
-                    obj_pos.0 += intersection - vel.0 * dt;
-                    physics.forces.ins
+                if let Some(n) = intersection{
+                    if n.magnitude() != 0.0 {
+                        let norm_n = n.normalize();
+                        let new_vel = norm_n * vel.0.dot(&norm_n);
+                        let new_accel = norm_n * accel.0.dot(&norm_n);
+                        let norm = obj_pos.0 - floor_pos.0;
+                        let norm = norm_n * norm.dot(&norm_n);
+                        let norm = norm.normalize();
+
+                        vel.0 -= new_vel;
+                        accel.0 -= new_accel;
+
+                        obj_pos.0 += norm * n.magnitude();
+
+                        use std::f32::consts::FRAC_1_SQRT_2;
+
+                        if Vec2::y_axis().dot(&norm.normalize()) > FRAC_1_SQRT_2 {
+                            ground.0 = true;
+                        }
+                    }
                 }
             }
         }

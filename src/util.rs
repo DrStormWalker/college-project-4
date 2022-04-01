@@ -35,17 +35,17 @@ impl Rect {
     pub fn top_left(&self) -> Vec2 { self.top_left }
     pub fn bottom_right(&self) -> Vec2 { self.bottom_right }
     pub fn top_right(&self) -> Vec2 { Vec2::new(self.bottom_right.x, self.top_left.y) }
-    pub fn bottom_left(&self) -> Vec2 { Vec2::new(self.bottom_right.x, self.top_left.y) }
+    pub fn bottom_left(&self) -> Vec2 { Vec2::new(self.top_left.x, self.bottom_right.y) }
 
     pub fn width(&self) -> f32 { self.bottom_right.x - self.top_left.x }
     pub fn height(&self) -> f32 { self.top_left.y - self.bottom_right.y }
 
-    pub fn verticies(&self) -> [Vec2; 4] {
+    pub fn vertices(&self) -> [Vec2; 4] {
         [
             self.top_left(),
-            self.top_right(),
             self.bottom_left(),
             self.bottom_right(),
+            self.top_right(),
         ]
     }
 
@@ -109,6 +109,42 @@ impl Polygon {
         }
 
         furthest_vertex
+    }
+
+    pub fn shifted(&self, shift: Vec2) -> Self {
+        Self { vertices: self.vertices.iter().map(|v| v + shift).collect() }
+    }
+
+    pub fn axis(&self) -> Vec<Vec2> {
+        let mut axes = Vec::with_capacity(self.vertices.len());
+
+        for i in 0..self.vertices.len() {
+            let a = self.vertices[i];
+            let b = self.vertices[if i + 1 >= self.vertices.len() { 0 } else { i + 1 }];
+
+            let ba = a - b;
+
+            axes.push(Vec2::new(ba.y, -ba.x).normalize());
+        }
+
+        axes
+    }
+
+    pub fn project(&self, axis: Vec2) -> (f32, f32) {
+        let mut min = axis.dot(&self.vertices[0]);
+        let mut max = min;
+
+        for vertex in &self.vertices {
+            let p = axis.dot(&vertex);
+
+            if p < min {
+                min = p;
+            } else if p > max {
+                max = p;
+            }
+        }
+
+        (min, max)
     }
 }
 

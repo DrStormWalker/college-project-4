@@ -6,7 +6,6 @@ use sdl2::rect::Point;
 use specs::{Component, Entity, System, VecStorage};
 use crate::util::{Polygon, Rect};
 use crate::{Vec2, wchar_t};
-use crate::gjk::GJK;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Position(pub Vec2);
@@ -20,36 +19,9 @@ impl Component for Velocity {
     type Storage = VecStorage<Self>;
 }
 
-pub const GAME_GRAVITATIONAL_CONSTANT: f32 = -190.0;
-
-#[derive(PartialEq, Hash)]
-pub enum ForceSource {
-    Constant(usize),
-    Entity(Entity),
-}
-
 #[derive(Debug, PartialEq)]
-pub struct Physics {
-    pub acceleration: Vec2,
-    pub forces: HashMap<ForceSource, Vec2>,
-    pub mass: usize,
-}
-impl Physics {
-    pub fn new(mass: usize) -> Self {
-        let mut forces = HashMap::new();
-        forces.insert(ForceSource::Constant(0), Vec2::new(0.0, mass * GAME_GRAVITATIONAL_CONSTANT));
-        Self {
-            acceleration: Vec2::zeros(),
-            mass,
-            forces,
-        }
-    }
-
-    pub fn acceleration(&self) -> Vec2 {
-        self.acceleration
-    }
-}
-impl Component for Physics {
+pub struct Acceleration(pub Vec2);
+impl Component for Acceleration {
     type Storage = VecStorage<Self>;
 }
 
@@ -98,25 +70,12 @@ impl Collider {
 
     pub fn from_rect(rect: Rect) -> Self {
         Self {
-            shape: Polygon::new(vec![
-                rect.top_left(),
-                rect.top_right(),
-                rect.bottom_right(),
-                rect.bottom_left(),
-            ]),
+            shape: Polygon::new(rect.vertices().to_vec()),
         }
     }
 
     pub fn shape(&self) -> &Polygon {
         &self.shape
-    }
-
-    pub fn find_intersection(a: &Polygon, a_pos: Vec2, b: &Polygon, b_pos: Vec2) -> Option<Vec2> {
-        use crate::gjk::GJK;
-
-        let mut gjk = GJK::new(a, a_pos, b, b_pos);
-
-        gjk.find_intersection()
     }
 }
 impl Component for Collider {

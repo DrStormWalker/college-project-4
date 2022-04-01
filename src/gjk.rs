@@ -44,7 +44,7 @@ fn triple_product(a: Vec2, b: Vec2, c: Vec2) -> Vec2 {
         .xy()
 }
 
-const EPA_ITERATIONS: usize = 1;
+const EPA_ITERATIONS: usize = 32;
 
 pub struct GJK<'a> {
     shape_a: &'a Polygon,
@@ -86,9 +86,9 @@ impl<'a> GJK<'a> {
                 let b = self.vertices[0];
 
                 let ab = b - a;
-                let oa = -a;
+                let ao = -a;
 
-                self.direction = triple_product(ab, oa, ab);
+                self.direction = triple_product(ab, ao, ab);
             },
             3 => {
                 let a = self.vertices[2];
@@ -97,15 +97,15 @@ impl<'a> GJK<'a> {
 
                 let ab = b - a;
                 let ac = c - a;
-                let oa = -a;
+                let ao = -a;
 
                 let ab_perpendicular = triple_product(ac, ab, ab);
                 let ac_perpendicular = triple_product(ab, ac, ac);
 
-                if ab_perpendicular.dot(&oa) > 0.0 {
+                if ab_perpendicular.dot(&ao) > 0.0 {
                     self.vertices.remove(0);
                     self.direction = ab_perpendicular;
-                } else if ac_perpendicular.dot(&oa) > 0.0 {
+                } else if ac_perpendicular.dot(&ao) > 0.0 {
                     self.vertices.remove(1);
                     self.direction = ac_perpendicular;
                 } else {
@@ -134,11 +134,6 @@ impl<'a> GJK<'a> {
         result == EvolutionResult::FoundIntersection
     }
 
-    /* EPA (Expanding Polytope Algorithm)
-     * based on:
-     * https://blog.hamaluik.ca/posts/building-a-collision-engine-part-2-2d-penetration-vectors/
-     */
-
     fn find_closest_edge(&mut self, winding: PolygonWinding) -> Edge {
         let mut closest_distance = f32::INFINITY;
         let mut closest_normal = Vec2::zeros();
@@ -150,8 +145,8 @@ impl<'a> GJK<'a> {
             let line = self.vertices[j] - self.vertices[i];
 
             let normal = match winding {
-                PolygonWinding::Clockwise => Vec2::new(-line.y, line.x),
-                PolygonWinding::AntiClockwise => Vec2::new(line.y, -line.x),
+                PolygonWinding::Clockwise => Vec2::new(line.y, -line.x),
+                PolygonWinding::AntiClockwise => Vec2::new(-line.y, line.x),
             };
             let normal = normal.normalize();
 
@@ -180,14 +175,15 @@ impl<'a> GJK<'a> {
         let winding = if e0 + e1 + e2 >= 0.0 { PolygonWinding::Clockwise } else { PolygonWinding::AntiClockwise };
 
         let mut intersection = Vec2::zeros();
-        for i in 0..EPA_ITERATIONS {
+        for _ in 0..EPA_ITERATIONS {
             let edge = self.find_closest_edge(winding);
             let support = self.calculate_support(edge.normal);
             let distance = support.dot(&edge.normal);
 
             intersection = edge.normal * distance;
 
-            if (distance - edge.distance).abs() <= 1e-6 {
+            println!("{:?} {:?}", distance, edge.distance);
+            if distance.abs() - edge.distance.abs() <= 0.01 {
                 return Some(intersection)
             } else {
                 self.vertices.insert(edge.index, support);
