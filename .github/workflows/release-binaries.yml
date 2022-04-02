@@ -2,8 +2,6 @@ name: release-binaries
 on:
   release:
     types: [published]
-  push:
-    branches: [main]
 
 jobs:
   linux-x86_64:
@@ -36,6 +34,7 @@ jobs:
         with:
           asset_name: cp4-${{ github.event.release.tag-name }}-linux-x86_64.tar.gz
           asset_path: target/x86_64-unknown-linux-musl/release/college-project-4.tar.gz
+          asset_content_type: application/gzip
           upload_url: ${{ github.event.release.upload_url }}
 
   macos-x86_64:
@@ -48,6 +47,11 @@ jobs:
           profile: minimal
           toolchain: stable
           default: true
+          
+      - name: Install vcpkg
+        run: |
+          cargo install cargo-vcpkg
+          cargo vcpkg build
 
       - name: Build binary
         uses: actions-rs/cargo@v1
@@ -70,6 +74,7 @@ jobs:
         with:
           asset_name: cp4-${{ github.event.release.tag-name }}-macos-x86_64.dmg
           asset_path: target/release/college-project-4.dmg
+          asset_content_type: application/octet-stream
           upload_url: ${{ github.event.release.upload_url }}
 
   windows-x86_64:
@@ -82,6 +87,11 @@ jobs:
           profile: minimal
           toolchain: stable
           default: true
+        
+      - name: Install vcpkg
+        run: |
+          cargo install cargo-vcpkg
+          cargo vcpkg build
 
       - name: Build binary
         uses: actions-rs/cargo@v1
@@ -97,4 +107,5 @@ jobs:
         with:
           asset_name: cp4-${{ github.event.release.tag-name }}-windows-x86_64.exe
           asset_path: target/release/college-project-4.exe
+          asset_content_type: application/vnd.microsoft.portable-executable
           upload_url: ${{ github.event.release.upload_url }}
