@@ -47,11 +47,6 @@ jobs:
           profile: minimal
           toolchain: stable
           default: true
-          
-      - name: Install vcpkg
-        run: |
-          cargo install cargo-vcpkg
-          cargo vcpkg build
 
       - name: Build binary
         uses: actions-rs/cargo@v1
@@ -87,11 +82,6 @@ jobs:
           profile: minimal
           toolchain: stable
           default: true
-        
-      - name: Install vcpkg
-        run: |
-          cargo install cargo-vcpkg
-          cargo vcpkg build
 
       - name: Build binary
         uses: actions-rs/cargo@v1
