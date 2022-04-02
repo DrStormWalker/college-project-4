@@ -7,7 +7,7 @@ use sdl2::pixels::Color;
 use sdl2::render::{Canvas, WindowCanvas};
 use specs::{AccessorCow, Entities, Join, ParJoin, Read, ReadStorage, RunningTime, System, Write, WriteExpect, WriteStorage};
 use crate::components::{Acceleration, Collider, FloorCollider, FloorCollision, PlayerController, RenderDescriptor, Velocity};
-use crate::{GameCamera, GameState, Grounded, Position, Rect, wchar_t, World};
+use crate::{GameCamera, GameState, Grounded, Position, Rect, World};
 use crate::resources::SystemState;
 use crate::sat::intersection;
 use crate::util::Vec2;

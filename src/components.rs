@@ -6,7 +6,7 @@ use sdl2::pixels::Color;
 use sdl2::rect::Point;
 use specs::{Component, Entity, System, VecStorage};
 use crate::util::{Polygon, Rect, Shape2D};
-use crate::{Vec2, wchar_t};
+use crate::Vec2;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Position(pub Vec2);

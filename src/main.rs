@@ -13,7 +13,6 @@ use std::borrow::Borrow;
 use std::time::{Duration, Instant};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::libc::{RTF_REINSTATE, wchar_t};
 use sdl2::pixels::Color;
 use sdl2::rect::Point;
 use sdl2::render::Canvas;

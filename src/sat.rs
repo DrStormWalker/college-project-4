@@ -1,5 +1,5 @@
 use crate::util::{Polygon, Shape2D};
-use crate::{Vec2, wchar_t};
+use crate::Vec2;
 
 pub fn intersection<'a>(a: &Box<dyn Shape2D + Send + Sync + 'a>, a_pos: Vec2, b: &Box<dyn Shape2D + Send + Sync + 'a>, b_pos: Vec2) -> Option<Vec2> {
     let a = a.shifted(&a_pos);

@@ -1,7 +1,6 @@
 use std::process::Output;
 use sdl2::rect::Rect as SDLRect;
 use nalgebra::Vector2;
-use crate::wchar_t;
 
 pub type Vec2 = Vector2<f32>;
 
