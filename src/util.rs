@@ -1,8 +1,51 @@
+use std::process::Output;
 use sdl2::rect::Rect as SDLRect;
 use nalgebra::Vector2;
 use crate::wchar_t;
 
 pub type Vec2 = Vector2<f32>;
+
+pub trait Shape2D {
+    fn vertices(&self) -> Vec<Vec2>;
+
+    fn project(&self, axis: &Vec2) -> (f32, f32) {
+        let vertices = self.vertices();
+
+        let mut min = axis.dot(&vertices[0]);
+        let mut max = min;
+
+        for vertex in &vertices {
+            let p = axis.dot(&vertex);
+
+            if p < min {
+                min = p;
+            } else if p > max {
+                max = p;
+            }
+        }
+
+        (min, max)
+    }
+
+    fn shifted(&self, shift: &Vec2) -> Box<dyn Shape2D>;
+
+    fn get_axes(&self) -> Vec<Vec2> {
+        let vertices = self.vertices();
+
+        let mut axes = Vec::with_capacity(vertices.len());
+
+        for i in 0..vertices.len() {
+            let a = vertices[i];
+            let b = vertices[if i + 1 >= vertices.len() { 0 } else { i + 1 }];
+
+            let ba = a - b;
+
+            axes.push(Vec2::new(ba.y, -ba.x).normalize());
+        }
+
+        axes
+    }
+}
 
 #[derive(Copy, Clone, PartialEq, Debug, Default)]
 pub struct Rect {
@@ -40,25 +83,11 @@ impl Rect {
     pub fn width(&self) -> f32 { self.bottom_right.x - self.top_left.x }
     pub fn height(&self) -> f32 { self.top_left.y - self.bottom_right.y }
 
-    pub fn vertices(&self) -> [Vec2; 4] {
-        [
-            self.top_left(),
-            self.bottom_left(),
-            self.bottom_right(),
-            self.top_right(),
-        ]
-    }
 
     pub fn set_top_left(&mut self, top_left: Vec2) { self.top_left = top_left }
     pub fn set_bottom_right(&mut self, bottom_right: Vec2) { self.bottom_right = bottom_right }
 
 
-    pub fn shifted(&self, translation: Vec2) -> Self {
-        Self {
-            top_left: self.top_left + translation,
-            bottom_right: self.bottom_right + translation,
-        }
-    }
 
     pub fn enlarged(&self, scale: Vec2) -> Self {
         let size = (self.bottom_right - self.top_left).xy();
@@ -66,13 +95,6 @@ impl Rect {
             top_left: self.top_left - Vec2::new(size.x * scale.x / 2.0, size.y * scale.y / 2.0),
             bottom_right: self.bottom_right + Vec2::new(size.x * scale.x / 2.0, size.y * scale.y / 2.0),
         }
-    }
-
-    pub fn intersecting(&self, other: &Rect) -> bool {
-        let a = self;
-        let b = other;
-        a.top_left().x < b.bottom_right().x && a.bottom_right().x > b.top_left().x
-            && a.top_left().y < b.bottom_right().y && a.bottom_right().y > b.top_left().y
     }
 
     pub fn into_sdl2_rect(self) -> SDLRect {
@@ -83,6 +105,33 @@ impl Rect {
             size.x as u32,
             size.y as u32,
         )
+    }
+}
+impl Shape2D for Rect {
+    fn vertices(&self) -> Vec<Vec2> {
+        vec![
+            self.top_left(),
+            self.bottom_left(),
+            self.bottom_right(),
+            self.top_right(),
+        ]
+    }
+
+    fn shifted(&self, shift: &Vec2) -> Box<dyn Shape2D> {
+        Box::new(Self {
+            top_left: self.top_left + shift,
+            bottom_right: self.bottom_right + shift,
+        })
+    }
+
+    fn get_axes(&self) -> Vec<Vec2> {
+        let a1 = self.top_right() - self.top_left();
+        let a1 = Vec2::new(a1.y, -a1.x).normalize();
+
+        let a2 = self.bottom_right() - self.top_right();
+        let a2 = Vec2::new(a2.y, -a2.x).normalize();
+
+        vec![a1, a2]
     }
 }
 
@@ -110,41 +159,14 @@ impl Polygon {
 
         furthest_vertex
     }
-
-    pub fn shifted(&self, shift: Vec2) -> Self {
-        Self { vertices: self.vertices.iter().map(|v| v + shift).collect() }
+}
+impl Shape2D for Polygon {
+    fn vertices(&self) -> Vec<Vec2> {
+        self.vertices.clone()
     }
 
-    pub fn axis(&self) -> Vec<Vec2> {
-        let mut axes = Vec::with_capacity(self.vertices.len());
-
-        for i in 0..self.vertices.len() {
-            let a = self.vertices[i];
-            let b = self.vertices[if i + 1 >= self.vertices.len() { 0 } else { i + 1 }];
-
-            let ba = a - b;
-
-            axes.push(Vec2::new(ba.y, -ba.x).normalize());
-        }
-
-        axes
-    }
-
-    pub fn project(&self, axis: Vec2) -> (f32, f32) {
-        let mut min = axis.dot(&self.vertices[0]);
-        let mut max = min;
-
-        for vertex in &self.vertices {
-            let p = axis.dot(&vertex);
-
-            if p < min {
-                min = p;
-            } else if p > max {
-                max = p;
-            }
-        }
-
-        (min, max)
+    fn shifted(&self, shift: &Vec2) -> Box<dyn Shape2D> {
+        Box::new(Self { vertices: self.vertices.iter().map(|v| v + shift).collect() })
     }
 }
 

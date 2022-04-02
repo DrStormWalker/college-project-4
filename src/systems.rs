@@ -180,7 +180,7 @@ impl<'a> System<'a> for FloorColliderSystem {
         WriteStorage<'a, Position>,
         WriteStorage<'a, Velocity>,
         WriteStorage<'a, Acceleration>,
-        WriteStorage<'a, Collider>,
+        WriteStorage<'a, Collider<'static>>,
         WriteStorage<'a, Grounded>,
         ReadStorage<'a, FloorCollision>,
         ReadStorage<'a, FloorCollider>,

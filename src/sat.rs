@@ -1,14 +1,14 @@
-use crate::util::Polygon;
+use crate::util::{Polygon, Shape2D};
 use crate::{Vec2, wchar_t};
 
-pub fn intersection(a: &Polygon, a_pos: Vec2, b: &Polygon, b_pos: Vec2) -> Option<Vec2> {
-    let a = a.shifted(a_pos);
-    let b = b.shifted(b_pos);
+pub fn intersection<'a>(a: &Box<dyn Shape2D + Send + Sync + 'a>, a_pos: Vec2, b: &Box<dyn Shape2D + Send + Sync + 'a>, b_pos: Vec2) -> Option<Vec2> {
+    let a = a.shifted(&a_pos);
+    let b = b.shifted(&b_pos);
 
     let mut overlap = f32::MAX;
     let mut smallest = Vec2::zeros();
-    let a_axes = a.axis();
-    let b_axes = b.axis();
+    let a_axes = a.get_axes();
+    let b_axes = b.get_axes();
 
     fn separated(a: (f32, f32), b: (f32, f32)) -> bool {
         a.1 < b.0 || b.1 < a.0
@@ -23,8 +23,8 @@ pub fn intersection(a: &Polygon, a_pos: Vec2, b: &Polygon, b_pos: Vec2) -> Optio
     }
 
     for axis in a_axes {
-        let p1 = a.project(axis);
-        let p2 = b.project(axis);
+        let p1 = a.project(&axis);
+        let p2 = b.project(&axis);
 
         if separated(p1, p2) {
             return None;
@@ -50,8 +50,8 @@ pub fn intersection(a: &Polygon, a_pos: Vec2, b: &Polygon, b_pos: Vec2) -> Optio
     }
 
     for axis in b_axes {
-        let p1 = a.project(axis);
-        let p2 = b.project(axis);
+        let p1 = a.project(&axis);
+        let p2 = b.project(&axis);
 
         if separated(p1, p2) {
             return None;

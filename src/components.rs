@@ -1,10 +1,11 @@
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::ops::{Range, RangeBounds, RangeFull};
 use sdl2::libc::wait;
 use sdl2::pixels::Color;
 use sdl2::rect::Point;
 use specs::{Component, Entity, System, VecStorage};
-use crate::util::{Polygon, Rect};
+use crate::util::{Polygon, Rect, Shape2D};
 use crate::{Vec2, wchar_t};
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -59,26 +60,19 @@ impl Component for PlayerController {
     type Storage = VecStorage<Self>;
 }
 
-#[derive(Debug, PartialEq)]
-pub struct Collider {
-    shape: Polygon,
+pub struct Collider<'a> {
+    shape: Box<dyn Shape2D + Send + Sync + 'a>,
 }
-impl Collider {
-    pub fn new(shape: Polygon) -> Self {
-        Self { shape }
+impl<'a> Collider<'a> {
+    pub fn new(shape: impl Shape2D + Send + Sync + 'a) -> Self {
+        Self { shape: Box::new(shape) }
     }
 
-    pub fn from_rect(rect: Rect) -> Self {
-        Self {
-            shape: Polygon::new(rect.vertices().to_vec()),
-        }
-    }
-
-    pub fn shape(&self) -> &Polygon {
+    pub fn shape(&self) -> &Box<dyn Shape2D + Send + Sync + 'a> {
         &self.shape
     }
 }
-impl Component for Collider {
+impl Component for Collider<'static> {
     type Storage = VecStorage<Self>;
 }
 

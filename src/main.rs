@@ -85,7 +85,7 @@ fn main() -> Result<(), String> {
         )
         .with(Grounded(true))
         .with(PlayerController {})
-        .with(Collider::from_rect(Rect::from_centre(Vec2::new(0.0, 0.0), PLAYER_WIDTH, PLAYER_HEIGHT)))
+        .with(Collider::new(Rect::from_centre(Vec2::new(0.0, 0.0), PLAYER_WIDTH, PLAYER_HEIGHT)))
         .with(FloorCollision {})
         .build();
 
@@ -96,7 +96,7 @@ fn main() -> Result<(), String> {
             Rect::from_size(Vec2::new(0.0, 0.0), 32.0, 2.0),
             Color::RGB(0, 255, 0),
         ))
-        .with(Collider::from_rect(Rect::from_size(Vec2::new(0.0, 0.0), 32.0, 2.0)))
+        .with(Collider::new(Rect::from_size(Vec2::new(0.0, 0.0), 32.0, 2.0)))
         .with(FloorCollider {})
         .build();
 
@@ -107,7 +107,7 @@ fn main() -> Result<(), String> {
             Rect::from_size(Vec2::new(0.0, 0.0), 8.0, 1.0),
             Color::RGB(0, 255, 0),
         ))
-        .with(Collider::from_rect(Rect::from_size(Vec2::new(0.0, 0.0), 8.0, 1.0)))
+        .with(Collider::new(Rect::from_size(Vec2::new(0.0, 0.0), 8.0, 1.0)))
         .with(FloorCollider {})
         .build();
 
