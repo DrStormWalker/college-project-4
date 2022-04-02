@@ -26,6 +26,3 @@ jobs:
 
       - name: Run tests
         run: cargo test
-
-      - name: Verify command runs
-        run: cargo run -- --version
