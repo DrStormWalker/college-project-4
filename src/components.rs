@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::{Range, RangeBounds, RangeFull};
-use sdl2::libc::wait;
 use sdl2::pixels::Color;
 use sdl2::rect::Point;
 use specs::{Component, Entity, System, VecStorage};
