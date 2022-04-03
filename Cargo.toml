@@ -9,5 +9,3 @@ edition = "2021"
 specs = "0.17.0"
 sdl2 = { version = "0.35.2", features = ["static-link", "bundled"] }
 nalgebra = "0.30.1"
-
-

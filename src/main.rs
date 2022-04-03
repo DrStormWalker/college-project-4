@@ -110,6 +110,28 @@ fn main() -> Result<(), String> {
         .with(FloorCollider {})
         .build();
 
+    world
+        .create_entity()
+        .with(Position(Vec2::new(-16.0, 12.0)))
+        .with(RenderDescriptor::new(
+            Rect::from_size(Vec2::new(0.0, 0.0), 0.5, 24.0),
+            Color::RGB(0, 255, 0),
+        ))
+        .with(Collider::new(Rect::from_size(Vec2::new(0.0, 0.0), 0.5, 24.0)))
+        .with(FloorCollider {})
+        .build();
+
+    world
+        .create_entity()
+        .with(Position(Vec2::new(15.5, 12.0)))
+        .with(RenderDescriptor::new(
+            Rect::from_size(Vec2::new(0.0, 0.0), 0.5, 24.0),
+            Color::RGB(0, 255, 0),
+        ))
+        .with(Collider::new(Rect::from_size(Vec2::new(0.0, 0.0), 0.5, 24.0)))
+        .with(FloorCollider {})
+        .build();
+
     let mut start = Instant::now();
 
     loop {
