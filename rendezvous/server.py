@@ -19,6 +19,8 @@ class ClientMessage:
 @dataclass
 class RoomRequest:
     max_clients: int
+    host: str
+    port: int
 
 @dataclass
 class Client:
@@ -29,6 +31,8 @@ class Client:
 class RoomInstance:
     id: str
     max_clients: int
+    connection_host: str
+    connection_port: int
     clients: list[Client]
 
 rooms: dict[str, RoomInstance] = {}
@@ -48,8 +52,10 @@ def create_room(request: RoomRequest, client: Client):
     rooms[room_id] = RoomInstance(
         id=room_id,
         max_clients=request.max_clients,
+        connection_host=request.host,
+        connection_port=request.port,
         clients=[
-
+            client
         ],
     )
 
@@ -129,4 +135,4 @@ def main():
                 traceback.print_exc()
 
 if __name__ == "__main__":
-    main()
+    test_main()
