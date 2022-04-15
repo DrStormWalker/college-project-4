@@ -4,8 +4,7 @@ use std::ops::{Range, RangeBounds, RangeFull};
 use sdl2::pixels::Color;
 use sdl2::rect::Point;
 use specs::{Component, Entity, System, VecStorage};
-use crate::util::{Polygon, Rect, Shape2D};
-use crate::Vec2;
+use crate::util::{Polygon, Rect, Shape2D, Vec2};
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Position(pub Vec2);

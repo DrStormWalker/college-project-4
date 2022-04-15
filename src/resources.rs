@@ -3,7 +3,7 @@ use std::hash::Hash;
 use sdl2::keyboard::Keycode;
 use sdl2::video::FullscreenType::Desktop;
 use sdl2::rect::Rect as SDLRect;
-use crate::{Rect, Vec2};
+use crate::util::{Rect, Vec2};
 
 #[derive(Clone, Copy, Debug)]
 pub enum SystemState {

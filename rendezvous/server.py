@@ -4,6 +4,7 @@ from dacite import from_dict
 from threading import Thread, ThreadError
 from argparse import ArgumentParser
 from multiprocessing import Pipe
+from typing import Optional
 import random
 import string
 import traceback
@@ -11,21 +12,55 @@ import socket
 import logging
 import json
 
+
 @dataclass
 class ClientMessage:
     type: str
     data: dict
 
+
 @dataclass
-class RoomRequest:
+class ClientConnectionResponse:
+    client_id: int
+
+
+@dataclass
+class CreateRoomRequest:
     max_clients: int
-    host: str
-    port: int
+    known_port: int
+
+
+@dataclass
+class CreateRoomResponse:
+    room_id: str
+
+
+@dataclass
+class JoinRoomRequest:
+    room_id: str
+
+
+@dataclass
+class NetworkData:
+    peer_ip: str
+    peer_port: int
+    known_port: int
+
+
+@dataclass
+class JoinRoomResponse:
+    success: bool
+    msg: Optional[str]
+    data: Optional[NetworkData]
+
 
 @dataclass
 class Client:
     id: int
     tx: Connection
+    ip: str
+    port: int
+
 
 @dataclass
 class RoomInstance:
@@ -33,14 +68,45 @@ class RoomInstance:
     max_clients: int
     connection_host: str
     connection_port: int
-    clients: list[Client]
+    known_port: int
+    host_id: int
+    clients: list[int]
+
+
+ClientId = int
+
+
+class Clients:
+    def __init__(self):
+        self.clients: dict[ClientId, Client] = {}
+
+    def __contains__(self, item):
+        return item in self.clients
+
+    def __getitem__(self, item: ClientId):
+        return self.clients[item]
+
+    def __setitem__(self, key: ClientId, value: Client):
+        self.clients[key] = value
+
+
+clients: Clients = Clients()
+
+
+class ClientIndex:
+    def __init__(self, client_id: ClientId):
+        self.client_id = client_id
+
+    def __call__(self, *args, **kwargs):
+        return clients[self.client_id]
+
 
 rooms: dict[str, RoomInstance] = {}
-clients: dict[int, Client] = {}
 
 ROOM_ID_CHARS = string.ascii_letters
 
-def create_room(request: RoomRequest, client: Client):
+
+def create_room(request: CreateRoomRequest, client: Client):
     def generate_id():
         return ''.join(random.choice(ROOM_ID_CHARS) for _ in range(6))
 
@@ -52,24 +118,90 @@ def create_room(request: RoomRequest, client: Client):
     rooms[room_id] = RoomInstance(
         id=room_id,
         max_clients=request.max_clients,
-        connection_host=request.host,
-        connection_port=request.port,
+        connection_host=client.ip,
+        connection_port=client.port,
+        known_port=request.known_port,
+        host_id=client.id,
         clients=[
-            client
+            client.id,
         ],
     )
 
+    print(f"Client {client.id} created room with id {room_id}")
+
+    client.tx.send(asdict(CreateRoomResponse(
+        room_id=room_id,
+    )))
+
+
+def join_room(request: JoinRoomRequest, client: ClientIndex):
+    if not request.room_id in rooms:
+        client().tx.send(asdict(JoinRoomResponse(
+            success=False,
+            msg="Room not found",
+            data=None,
+        )))
+        return
+
+    room = rooms[request.room_id]
+
+    client().tx.send(asdict(JoinRoomResponse(
+        success=True,
+        msg=None,
+        data=NetworkData(
+            peer_ip=room.connection_host,
+            peer_port=room.connection_port,
+            known_port=room.known_port,
+        ),
+    )))
+
+    ClientIndex(room.host_id)().tx.send(asdict(JoinRoomResponse(
+        success=True,
+        msg=None,
+        data=NetworkData(
+            peer_ip=client().ip,
+            peer_port=client().port,
+            known_port=room.known_port,
+        ),
+    )))
+
+
 def process_request(data: dict, client: Client):
     msg = from_dict(data_class=ClientMessage, data=data)
+    client = ClientIndex(client.id)
 
     match msg.type:
-        case "room_request":
-            msg = from_dict(data_class=RoomRequest, data=msg.data)
-            create_room(msg, client)
+        case "room/create":
+            msg = from_dict(data_class=CreateRoomRequest, data=msg.data)
+            create_room(msg, client())
+        case "room/join":
+            msg = from_dict(data_class=JoinRoomRequest, data=msg.data)
+            join_room(msg, client)
 
-def client_handler(connection: socket.socket, ip: str, port: int, max_buffer_size = 4096):
+
+def client_outbound(connection: socket.socket, rx: Connection):
+    while True:
+        data = rx.recv()
+
+        if type(data) is dict:
+            data = json.dumps(data).encode("utf-8")
+        elif type(data) is str:
+            data = data.encode("utf-8")
+
+        bytes_sent = connection.send(data)
+
+
+def client_inbound(connection: socket.socket, client: Client, max_buffer_size=4096):
+    while True:
+        data = connection.recv(max_buffer_size)
+        data = json.loads(data)
+
+        process_request(data, client)
+
+
+def client_handler(connection: socket.socket, ip: str, port: int, max_buffer_size=4096):
     def generate_client_id():
-        return int(random.randbytes(4))
+        return int.from_bytes(random.randbytes(4), "big")
 
     client_id = generate_client_id()
 
@@ -81,15 +213,22 @@ def client_handler(connection: socket.socket, ip: str, port: int, max_buffer_siz
     client = Client(
         id=client_id,
         tx=tx,
+        ip=ip,
+        port=port,
     )
-    client[client_id] = client
+    clients[client_id] = client
 
-    while True:
-        data = connection.recv(max_buffer_size)
+    Thread(
+        target=client_outbound,
+        args=(connection, rx),
+    ).start()
 
-        data = data.decode("utf-8").rstrip()
-        data = json.loads(data)
-        process_request(data, client)
+    tx.send(asdict(ClientConnectionResponse(
+        client_id=client_id,
+    )))
+
+    client_inbound(connection, client, max_buffer_size)
+
 
 def main():
     parser = ArgumentParser(description="Team Platformer rendezvous server")
@@ -104,7 +243,7 @@ def main():
         "-p", "--port",
         help="Specifies the port for the server to listen on",
         type=int,
-        default=50001,
+        default=50000,
         dest="port",
     )
 
@@ -134,5 +273,6 @@ def main():
                 logging.error("Failed to start thread")
                 traceback.print_exc()
 
+
 if __name__ == "__main__":
-    test_main()
+    main()
