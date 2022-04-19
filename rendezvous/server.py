@@ -4,7 +4,7 @@ from dacite import from_dict
 from threading import Thread, ThreadError
 from argparse import ArgumentParser
 from multiprocessing import Pipe
-from typing import Optional
+from typing import Optional, ClassVar, TypeVar
 import random
 import string
 import traceback
@@ -13,45 +13,66 @@ import logging
 import json
 
 
+T = TypeVar("T")
+
+
 @dataclass
-class ClientMessage:
+class Message:
     type: str
-    data: dict
+    data: dict | T
 
 
 @dataclass
 class ClientConnectionResponse:
     client_id: int
+    TYPE: ClassVar[str] = "@response client/connection"
 
 
 @dataclass
 class CreateRoomRequest:
     max_clients: int
-    known_port: int
+    send_port: int
+    recv_port: int
 
 
 @dataclass
 class CreateRoomResponse:
     room_id: str
+    TYPE: ClassVar[str] = "@response room/create"
 
 
 @dataclass
 class JoinRoomRequest:
     room_id: str
+    send_port: int
+    recv_port: int
 
 
 @dataclass
 class NetworkData:
-    peer_ip: str
-    peer_port: int
-    known_port: int
+    ip: str
+    send_port: int
+    recv_port: int
+
+
+@dataclass
+class ClientData:
+    client_id: int
+    network_data: NetworkData
 
 
 @dataclass
 class JoinRoomResponse:
     success: bool
+    room_id: str
     msg: Optional[str]
-    data: Optional[NetworkData]
+    host_data: Optional[ClientData]
+    TYPE: ClassVar[str] = "@response room/join"
+
+
+@dataclass
+class JoinRoomNotification(ClientData):
+    TYPE: ClassVar[str] = "@notification room/join"
 
 
 @dataclass
@@ -63,17 +84,21 @@ class Client:
 
 
 @dataclass
-class RoomInstance:
-    id: str
-    max_clients: int
-    connection_host: str
-    connection_port: int
-    known_port: int
-    host_id: int
-    clients: list[int]
+class RoomClient:
+    id: int
+    send_port: int
+    recv_port: int
 
 
 ClientId = int
+
+
+@dataclass
+class RoomInstance:
+    id: str
+    max_clients: int
+    host_id: int
+    clients: dict[ClientId, RoomClient]
 
 
 class Clients:
@@ -83,7 +108,7 @@ class Clients:
     def __contains__(self, item):
         return item in self.clients
 
-    def __getitem__(self, item: ClientId):
+    def __getitem__(self, item: ClientId) -> Client:
         return self.clients[item]
 
     def __setitem__(self, key: ClientId, value: Client):
@@ -110,7 +135,7 @@ def create_room(request: CreateRoomRequest, client: Client):
     def generate_id():
         return ''.join(random.choice(ROOM_ID_CHARS) for _ in range(6))
 
-    room_id = generate_id()
+    room_id = "fYLyWg"
 
     while room_id in rooms:
         room_id = generate_id()
@@ -118,56 +143,81 @@ def create_room(request: CreateRoomRequest, client: Client):
     rooms[room_id] = RoomInstance(
         id=room_id,
         max_clients=request.max_clients,
-        connection_host=client.ip,
-        connection_port=client.port,
-        known_port=request.known_port,
         host_id=client.id,
-        clients=[
-            client.id,
-        ],
+        clients={
+             client.id: RoomClient(
+                id=client.id,
+                send_port=request.send_port,
+                recv_port=request.recv_port,
+            ),
+        },
     )
 
     print(f"Client {client.id} created room with id {room_id}")
 
-    client.tx.send(asdict(CreateRoomResponse(
-        room_id=room_id,
+    client.tx.send(asdict(Message(
+        type=CreateRoomResponse.TYPE,
+        data=CreateRoomResponse(
+            room_id=room_id,
+        ),
     )))
 
 
-def join_room(request: JoinRoomRequest, client: ClientIndex):
-    if not request.room_id in rooms:
-        client().tx.send(asdict(JoinRoomResponse(
-            success=False,
-            msg="Room not found",
-            data=None,
+def join_room(request: JoinRoomRequest, client: Client):
+    if request.room_id not in rooms:
+        client.tx.send(asdict(Message(
+            type=JoinRoomResponse.TYPE,
+            data=JoinRoomResponse(
+                success=False,
+                room_id=request.room_id,
+                msg="Room not found",
+                host_data=None,
+            ),
         )))
         return
 
     room = rooms[request.room_id]
+    room_host = room.clients[room.host_id]
+    host = clients[room.host_id]
 
-    client().tx.send(asdict(JoinRoomResponse(
-        success=True,
-        msg=None,
-        data=NetworkData(
-            peer_ip=room.connection_host,
-            peer_port=room.connection_port,
-            known_port=room.known_port,
+    client.tx.send(asdict(Message(
+        type=JoinRoomResponse.TYPE,
+        data=JoinRoomResponse(
+            success=True,
+            room_id=request.room_id,
+            msg=None,
+            host_data=ClientData(
+                client_id=client.id,
+                network_data=NetworkData(
+                    ip=host.ip,
+                    send_port=room_host.send_port,
+                    recv_port=room_host.recv_port,
+                ),
+            ),
         ),
     )))
 
-    ClientIndex(room.host_id)().tx.send(asdict(JoinRoomResponse(
-        success=True,
-        msg=None,
-        data=NetworkData(
-            peer_ip=client().ip,
-            peer_port=client().port,
-            known_port=room.known_port,
+    host.tx.send(asdict(Message(
+        type=JoinRoomNotification.TYPE,
+        data=JoinRoomNotification(
+            client_id=client.id,
+            network_data=NetworkData(
+                ip=client.ip,
+                send_port=request.send_port,
+                recv_port=request.recv_port,
+            ),
         ),
     )))
+
+    rooms[request.room_id].clients[client.id] = RoomClient(
+        id=client.id,
+        send_port=request.send_port,
+        recv_port=request.recv_port,
+    )
 
 
 def process_request(data: dict, client: Client):
-    msg = from_dict(data_class=ClientMessage, data=data)
+    msg = from_dict(data_class=Message, data=data)
     client = ClientIndex(client.id)
 
     match msg.type:
@@ -176,7 +226,7 @@ def process_request(data: dict, client: Client):
             create_room(msg, client())
         case "room/join":
             msg = from_dict(data_class=JoinRoomRequest, data=msg.data)
-            join_room(msg, client)
+            join_room(msg, client())
 
 
 def client_outbound(connection: socket.socket, rx: Connection):
@@ -223,8 +273,11 @@ def client_handler(connection: socket.socket, ip: str, port: int, max_buffer_siz
         args=(connection, rx),
     ).start()
 
-    tx.send(asdict(ClientConnectionResponse(
-        client_id=client_id,
+    tx.send(asdict(Message(
+        type=ClientConnectionResponse.TYPE,
+        data=ClientConnectionResponse(
+            client_id=client_id,
+        ),
     )))
 
     client_inbound(connection, client, max_buffer_size)
