@@ -1,4 +1,4 @@
-use std::process::Output;
+
 use sdl2::rect::Rect as SDLRect;
 use nalgebra::Vector2;
 
@@ -14,7 +14,7 @@ pub trait Shape2D {
         let mut max = min;
 
         for vertex in &vertices {
-            let p = axis.dot(&vertex);
+            let p = axis.dot(vertex);
 
             if p < min {
                 min = p;

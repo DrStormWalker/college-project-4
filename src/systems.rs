@@ -1,15 +1,18 @@
-use std::collections::{HashSet, VecDeque};
-use nalgebra::max;
-use sdl2::event::Event;
-use sdl2::EventPump;
-use sdl2::keyboard::Keycode;
-use sdl2::pixels::Color;
-use sdl2::render::{Canvas, WindowCanvas};
-use specs::{AccessorCow, Entities, Join, ParJoin, Read, ReadStorage, RunningTime, System, Write, WriteExpect, WriteStorage};
-use crate::components::{Acceleration, Collider, FloorCollider, FloorCollision, Grounded, PlayerController, Position, RenderDescriptor, Velocity};
+use std::collections::HashSet;
+
+use crate::components::{
+    Acceleration, Collider, FloorCollider, FloorCollision, Grounded, PlayerController, Position,
+    RenderDescriptor, Velocity,
+};
 use crate::resources::{GameCamera, GameState, SystemState};
 use crate::sat::intersection;
 use crate::util::Vec2;
+use sdl2::event::Event;
+use sdl2::keyboard::Keycode;
+use sdl2::pixels::Color;
+use sdl2::render::WindowCanvas;
+use sdl2::EventPump;
+use specs::{Entities, Join, Read, ReadStorage, System, Write, WriteStorage};
 
 pub struct RenderSystem {
     canvas: WindowCanvas,
@@ -32,18 +35,14 @@ impl<'a> System<'a> for RenderSystem {
         self.canvas.set_draw_color(Color::RGB(0, 0, 0));
         self.canvas.clear();
 
-        let (
-            position,
-            descriptor,
-            camera,
-        ) = data;
+        let (position, descriptor, camera) = data;
 
         for (pos, desc) in (&position, &descriptor).join() {
             self.canvas.set_draw_color(desc.colour());
             if let Some(rect) = camera.try_process_rect(pos.0, desc.rectangle()) {
                 match self.canvas.fill_rect(rect) {
                     Err(e) => eprintln!("{}", e),
-                    _ => {},
+                    _ => {}
                 }
             }
         }
@@ -55,27 +54,29 @@ pub struct EventSystem {
     event_pump: EventPump,
 }
 impl EventSystem {
-    pub fn new (event_pump: EventPump) -> Self {
+    pub fn new(event_pump: EventPump) -> Self {
         Self { event_pump }
     }
 }
 impl<'a> System<'a> for EventSystem {
     type SystemData = Write<'a, GameState>;
 
-    fn run(&mut self, mut data: Self::SystemData) {
+    fn run(&mut self, data: Self::SystemData) {
         let mut game_state = data;
 
         for event in self.event_pump.poll_iter() {
             match event {
-                Event::Quit { .. } | Event::KeyDown {
+                Event::Quit { .. }
+                | Event::KeyDown {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => game_state.system_state = SystemState::Quit,
-                _ => {},
+                _ => {}
             }
         }
 
-        let keys = self.event_pump
+        let keys = self
+            .event_pump
             .keyboard_state()
             .pressed_scancodes()
             .filter_map(Keycode::from_scancode)
@@ -100,21 +101,15 @@ impl<'a> System<'a> for EntityMovementSystem {
     fn run(&mut self, data: Self::SystemData) {
         use specs::Join;
 
-        let (
-            mut position,
-            mut velocity,
-            mut accel,
-            mut grounded,
-            game_state,
-        ) = data;
+        let (mut position, mut velocity, mut accel, mut grounded, game_state) = data;
 
         let dt = game_state.delta_t;
 
-        for (accel) in (&mut accel).join() {
+        for accel in (&mut accel).join() {
             accel.0.y = -130.0;
         }
 
-        for (ground) in (&mut grounded).join() {
+        for ground in (&mut grounded).join() {
             ground.0 = false;
         }
 
@@ -141,20 +136,16 @@ impl<'a> System<'a> for PlayerMovementSystem {
     fn run(&mut self, data: Self::SystemData) {
         use specs::Join;
 
-        let (
-            mut position,
-            mut velocity,
-            mut grounded,
-            player_controlled,
-            game_state
-        ) = data;
+        let (mut position, mut velocity, mut grounded, player_controlled, game_state) = data;
 
-        for (pos, vel, ground, _) in (
+        for (_pos, vel, ground, _) in (
             &mut position,
             &mut velocity,
             &mut grounded,
-            &player_controlled
-        ).join() {
+            &player_controlled,
+        )
+            .join()
+        {
             let mut vx = 0.0f32;
             for key in &game_state.keys_held {
                 use Keycode::*;
@@ -165,7 +156,7 @@ impl<'a> System<'a> for PlayerMovementSystem {
                         vel.0.y = 40.0;
                         ground.0 = false;
                     }
-                    _ => {},
+                    _ => {}
                 }
             }
             vel.0.x = vx;
@@ -188,7 +179,6 @@ impl<'a> System<'a> for FloorColliderSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        use specs::Join;
         let (
             mut position,
             mut velocity,
@@ -201,29 +191,30 @@ impl<'a> System<'a> for FloorColliderSystem {
             entities,
         ) = data;
 
-        let dt = game_state.delta_t;
+        let _dt = game_state.delta_t;
 
-        'objects: for (
-            colliding,
-            vel,
-            accel,
-            player_collider,
-            ground,
-            _,
-        ) in (
+        'objects: for (colliding, vel, accel, player_collider, mut ground, _) in (
             &entities,
             &mut velocity,
             &mut acceleration,
             &collider,
-            &mut grounded,
-            &floor_collision
-        ).join() {
-            'floors: for (floor, floor_collider, _) in (&entities, &collider, &floor_collider).join() {
-                let floor_pos = if let Some(pos) = position.get(floor) { *pos } else { continue 'floors };
+            (&mut grounded).maybe(),
+            &floor_collision,
+        )
+            .join()
+        {
+            'floors: for (floor, floor_collider, _) in
+                (&entities, &collider, &floor_collider).join()
+            {
+                let floor_pos = if let Some(pos) = position.get(floor) {
+                    *pos
+                } else {
+                    continue 'floors;
+                };
                 let obj_pos = if let Some(pos) = position.get_mut(colliding) {
                     pos
                 } else {
-                    continue 'objects
+                    continue 'objects;
                 };
 
                 let intersection = intersection(
@@ -233,7 +224,7 @@ impl<'a> System<'a> for FloorColliderSystem {
                     floor_pos.0,
                 );
 
-                if let Some(n) = intersection{
+                if let Some(n) = intersection {
                     if n.magnitude() != 0.0 {
                         let norm_n = n.normalize();
                         let new_vel = norm_n * vel.0.dot(&norm_n);
@@ -249,8 +240,10 @@ impl<'a> System<'a> for FloorColliderSystem {
 
                         use std::f32::consts::FRAC_1_SQRT_2;
 
-                        if Vec2::y_axis().dot(&norm.normalize()) > FRAC_1_SQRT_2 {
-                            ground.0 = true;
+                        if let Some(ground) = &mut ground {
+                            if Vec2::y_axis().dot(&norm.normalize()) > FRAC_1_SQRT_2 {
+                                ground.0 = true;
+                            }
                         }
                     }
                 }

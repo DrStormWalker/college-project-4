@@ -1,17 +1,14 @@
 use serde::{Deserialize, Serialize};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
-use specs::System;
 use std::fmt::{Display, Formatter};
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 use tokio::io;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpStream, UdpSocket};
-use tokio::sync::mpsc::Sender;
-use tokio::sync::{mpsc, Mutex};
+use tokio::net::{TcpStream, ToSocketAddrs, UdpSocket};
+use tokio::sync::{broadcast, mpsc, Mutex};
 
 #[derive(Debug)]
 pub enum IoOrSerdeError {
@@ -38,17 +35,14 @@ impl From<serde_json::Error> for IoOrSerdeError {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Message {
     #[serde(rename = "type")]
     pub msg_type: String,
     pub data: Value,
 }
 impl Message {
-    pub fn new<'a, T>(msg_type: String, data: T) -> Self
-    where
-        T: Serialize + Deserialize<'a>,
-    {
+    pub fn new<'a>(msg_type: String, data: impl Serialize) -> Self {
         Self {
             msg_type,
             data: serde_json::to_value(data).unwrap(),
@@ -121,25 +115,25 @@ where
 }
 
 struct RendezvousConnector {
-    pub tx: Sender<Message>,
+    pub tx: mpsc::Sender<Message>,
     pub client_id: u32,
 }
 
 #[derive(Debug)]
-struct PeerConnection {
-    pub tx: Sender<Message>,
+pub struct PeerConnection {
+    pub tx: mpsc::Sender<Message>,
     pub client_id: u32,
     pub peer_addr: SocketAddr,
 }
 
 #[derive(Debug)]
-enum RoomConnectionType {
+pub enum RoomConnectionType {
     Host(Vec<PeerConnection>),
     Client(PeerConnection),
 }
 
 #[derive(Debug)]
-struct RoomConnection {
+pub struct RoomConnection {
     pub room_id: String,
     pub room_host: u32,
     pub connection_type: RoomConnectionType,
@@ -152,7 +146,7 @@ pub struct CommunicationSockets {
 
 pub struct TransmissionNetworkPortal {
     rendezvous_connection: Option<RendezvousConnector>,
-    room_connection: Option<RoomConnection>,
+    pub room_connection: Option<RoomConnection>,
     sockets: Option<CommunicationSockets>,
 }
 impl TransmissionNetworkPortal {
@@ -167,6 +161,7 @@ impl TransmissionNetworkPortal {
     async fn handle_rendezvous_message(
         this: Arc<Mutex<Self>>,
         msg: Message,
+        broadcast_tx: broadcast::Sender<Message>,
     ) -> Result<(), IoOrSerdeError> {
         let msg_type = msg.msg_type.as_str();
 
@@ -227,6 +222,16 @@ impl TransmissionNetworkPortal {
                         }
                     });
 
+                    {
+                        let mut rx = broadcast_tx.subscribe();
+                        let tx = tx.clone();
+                        tokio::spawn(async move {
+                            while let Ok(msg) = rx.recv().await {
+                                tx.send(msg).await;
+                            }
+                        });
+                    }
+
                     tx
                 };
 
@@ -237,7 +242,6 @@ impl TransmissionNetworkPortal {
                         let mut buf = [0u8; 4096];
                         while let Ok((size, addr)) = recv.recv_from(&mut buf).await {
                             let msg = String::from_utf8_lossy(&buf[..size]);
-                            println!("Message received from {}: {}", addr, msg);
 
                             buf = [0u8; 4096];
                         }
@@ -296,7 +300,6 @@ impl TransmissionNetworkPortal {
                         while let Some(val) = rx.recv().await {
                             let msg = serde_json::to_string(&val).unwrap();
 
-                            println!("Sending message {} to {}", msg, client_id);
                             socket
                                 .send_to(msg.as_bytes(), peer_recv_addr)
                                 .await
@@ -304,19 +307,15 @@ impl TransmissionNetworkPortal {
                         }
                     });
 
-                    let keep_alive_tx = tx.clone();
-
-                    tokio::spawn(async move {
-                        loop {
-                            keep_alive_tx
-                                .send(Message::new("connection/keep-alive".to_string(), ()))
-                                .await
-                                .unwrap_or_else(print_err);
-
-                            println!("Sending keepalive message");
-                            thread::sleep(Duration::from_secs(5));
-                        }
-                    });
+                    {
+                        let mut rx = broadcast_tx.subscribe();
+                        let tx = tx.clone();
+                        tokio::spawn(async move {
+                            while let Ok(msg) = rx.recv().await {
+                                tx.send(msg).await;
+                            }
+                        });
+                    }
 
                     tx
                 };
@@ -339,10 +338,22 @@ impl TransmissionNetworkPortal {
         Ok(())
     }
 
-    pub async fn rendezvous_init(
+    pub async fn rendezvous_init<A>(
         mut self,
-        addr: SocketAddr,
-    ) -> Result<Arc<Mutex<Self>>, IoOrSerdeError> {
+        addr: A,
+        source: IpAddr,
+        send_port: u16,
+        recv_port: u16,
+    ) -> Result<
+        (
+            Arc<Mutex<Self>>,
+            (broadcast::Sender<Message>, mpsc::Receiver<Message>),
+        ),
+        IoOrSerdeError,
+    >
+    where
+        A: ToSocketAddrs,
+    {
         let (tx, mut rx) = mpsc::channel::<Message>(100);
 
         let stream = TcpStream::connect(addr).await?;
@@ -364,6 +375,17 @@ impl TransmissionNetworkPortal {
             response.client_id
         );
 
+        let send_socket = UdpSocket::bind(SocketAddr::new(source, send_port)).await?;
+        let send_socket = Arc::new(send_socket);
+
+        let recv_socket = UdpSocket::bind(SocketAddr::new(source, recv_port)).await?;
+        let recv_socket = Arc::new(recv_socket);
+
+        self.sockets = Some(CommunicationSockets {
+            tx: send_socket,
+            rx: recv_socket.clone(),
+        });
+
         let this = Arc::new(Mutex::new(self));
 
         tokio::spawn(async move {
@@ -379,7 +401,10 @@ impl TransmissionNetworkPortal {
             }
         });
 
+        let (tx, _) = broadcast::channel::<Message>(5);
+
         {
+            let tx = tx.clone();
             let this = this.clone();
             tokio::spawn(async move {
                 let mut buf = [0u8; 4096];
@@ -396,7 +421,7 @@ impl TransmissionNetworkPortal {
                         }
                     };
 
-                    Self::handle_rendezvous_message(this.clone(), msg)
+                    Self::handle_rendezvous_message(this.clone(), msg, tx.clone())
                         .await
                         .unwrap_or_else(print_err);
 
@@ -405,33 +430,33 @@ impl TransmissionNetworkPortal {
             });
         }
 
-        Ok(this)
+        let rx = {
+            let (tx, rx) = mpsc::channel(100);
+            let socket = recv_socket;
+
+            tokio::spawn(async move {
+                let mut buf = [0; 4096];
+                while let Ok(size) = socket.recv(&mut buf).await {
+                    let msg = serde_json::from_slice::<Message>(&buf[0..size]).unwrap();
+
+                    tx.send(msg).await;
+
+                    buf = [0; 4096];
+                }
+            });
+
+            rx
+        };
+
+        Ok((this, (tx, rx)))
     }
 
-    pub async fn create_room(
-        &mut self,
-        source: IpAddr,
-        send_port: u16,
-        recv_port: u16,
-    ) -> Result<(), IoOrSerdeError> {
-        let send_socket = UdpSocket::bind(SocketAddr::new(source, send_port)).await?;
-        let send_socket = Arc::new(send_socket);
+    pub async fn create_room(&mut self) -> Result<(), IoOrSerdeError> {
+        let tx = &self.rendezvous_connection.as_ref().unwrap().tx;
 
-        let recv_socket = UdpSocket::bind(SocketAddr::new(source, recv_port)).await?;
-        let recv_socket = Arc::new(recv_socket);
-
-        let send_port = send_socket.local_addr()?.port();
-        let recv_port = recv_socket.local_addr()?.port();
-
-        self.sockets = Some(CommunicationSockets {
-            tx: send_socket,
-            rx: recv_socket,
-        });
-
-        let tx = match &self.rendezvous_connection {
-            Some(conn) => conn.tx.clone(),
-            None => panic!(),
-        };
+        let sockets = &self.sockets.as_ref().unwrap();
+        let send_port = sockets.tx.local_addr().unwrap().port();
+        let recv_port = sockets.rx.local_addr().unwrap().port();
 
         let data = serde_json::to_value(CreateRoomRequest {
             max_clients: 2,
@@ -450,31 +475,12 @@ impl TransmissionNetworkPortal {
         Ok(())
     }
 
-    pub async fn join_room(
-        &mut self,
-        room_id: String,
-        source: IpAddr,
-        send_port: u16,
-        recv_port: u16,
-    ) -> Result<(), IoOrSerdeError> {
-        let send_socket = UdpSocket::bind(SocketAddr::new(source, send_port)).await?;
-        let send_socket = Arc::new(send_socket);
+    pub async fn join_room(&mut self, room_id: String) -> Result<(), IoOrSerdeError> {
+        let tx = &self.rendezvous_connection.as_ref().unwrap().tx;
 
-        let recv_socket = UdpSocket::bind(SocketAddr::new(source, recv_port)).await?;
-        let recv_socket = Arc::new(recv_socket);
-
-        let send_port = send_socket.local_addr()?.port();
-        let recv_port = recv_socket.local_addr()?.port();
-
-        self.sockets = Some(CommunicationSockets {
-            tx: send_socket,
-            rx: recv_socket,
-        });
-
-        let tx = match &self.rendezvous_connection {
-            Some(conn) => conn.tx.clone(),
-            None => panic!(),
-        };
+        let sockets = &self.sockets.as_ref().unwrap();
+        let send_port = sockets.tx.local_addr().unwrap().port();
+        let recv_port = sockets.rx.local_addr().unwrap().port();
 
         let data = serde_json::to_value(JoinRoomRequest {
             room_id,
@@ -492,9 +498,4 @@ impl TransmissionNetworkPortal {
 
         Ok(())
     }
-}
-impl<'a> System<'a> for TransmissionNetworkPortal {
-    type SystemData = ();
-
-    fn run(&mut self, data: Self::SystemData) {}
 }

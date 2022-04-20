@@ -11,9 +11,13 @@ extern crate sdl2;
 extern crate serde;
 extern crate specs;
 
-use crate::networking::systems::TransmissionNetworkPortal;
+use crate::networking::systems::{Message, TransmissionNetworkPortal};
 use clap::{ArgEnum, Parser};
-use std::net::{IpAddr, SocketAddr};
+use std::{
+    net::{IpAddr, SocketAddr, ToSocketAddrs},
+    sync::Arc,
+};
+use tokio::sync::{broadcast, mpsc, Mutex};
 
 #[derive(Copy, Clone, ArgEnum, Debug)]
 pub enum NetworkMode {
@@ -37,7 +41,7 @@ pub struct Args {
     pub recv_port: u16,
 
     #[clap(short, long, default_value = "127.0.0.1:50000")]
-    pub rendezvous: SocketAddr,
+    pub rendezvous: String,
 
     #[clap(short = 'i', long)]
     pub room_id: Option<String>,
@@ -51,10 +55,18 @@ async fn main() -> Result<(), String> {
 
     let portal = TransmissionNetworkPortal::new();
 
-    if let NetworkMode::None = args.networking {
+    let (portal, channels) = if let NetworkMode::None = args.networking {
+        let (tx, _) = broadcast::channel::<Message>(1);
+        let (_, rx) = mpsc::channel::<Message>(1);
+        (Arc::new(Mutex::new(portal)), (tx, rx))
     } else {
-        let portal = portal
-            .rendezvous_init(args.rendezvous)
+        let (portal, channels) = portal
+            .rendezvous_init(
+                args.rendezvous.clone(),
+                args.source,
+                args.send_port,
+                args.recv_port,
+            )
             .await
             .map_err(|e| e.to_string())?;
 
@@ -62,7 +74,7 @@ async fn main() -> Result<(), String> {
             NetworkMode::Host => portal
                 .lock()
                 .await
-                .create_room(args.source, args.send_port, args.recv_port)
+                .create_room()
                 .await
                 .map_err(|e| e.to_string())?,
             NetworkMode::Client => {
@@ -70,7 +82,7 @@ async fn main() -> Result<(), String> {
                     portal
                         .lock()
                         .await
-                        .join_room(id.clone(), args.source, args.send_port, args.recv_port)
+                        .join_room(id.clone())
                         .await
                         .map_err(|e| e.to_string())?
                 } else {
@@ -79,7 +91,9 @@ async fn main() -> Result<(), String> {
             }
             _ => {}
         }
-    }
 
-    game::game_main(args)
+        (portal, channels)
+    };
+
+    game::game_main(args, portal, channels).await
 }

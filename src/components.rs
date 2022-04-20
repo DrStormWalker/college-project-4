@@ -1,10 +1,9 @@
-use std::collections::HashMap;
 use std::fmt::Debug;
-use std::ops::{Range, RangeBounds, RangeFull};
+
 use sdl2::pixels::Color;
-use sdl2::rect::Point;
-use specs::{Component, Entity, System, VecStorage};
-use crate::util::{Polygon, Rect, Shape2D, Vec2};
+
+use crate::util::{Rect, Shape2D, Vec2};
+use specs::{Component, VecStorage};
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Position(pub Vec2);
@@ -63,7 +62,9 @@ pub struct Collider<'a> {
 }
 impl<'a> Collider<'a> {
     pub fn new(shape: impl Shape2D + Send + Sync + 'a) -> Self {
-        Self { shape: Box::new(shape) }
+        Self {
+            shape: Box::new(shape),
+        }
     }
 
     pub fn shape(&self) -> &Box<dyn Shape2D + Send + Sync + 'a> {
