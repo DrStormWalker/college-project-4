@@ -163,6 +163,7 @@ impl TransmissionNetworkPortal {
         msg: Message,
         broadcast_tx: broadcast::Sender<Message>,
     ) -> Result<(), IoOrSerdeError> {
+        println!("Received rendezvous message: {:?}", msg);
         let msg_type = msg.msg_type.as_str();
 
         match msg_type {
@@ -206,6 +207,16 @@ impl TransmissionNetworkPortal {
                     let msg = serde_json::to_string(&msg)?;
 
                     recv_socket.send_to(msg.as_bytes(), peer_send_addr).await?;
+
+                    tokio::spawn(async move {
+                        loop {
+                            let msg = Message::new("connection/keep-alive".to_string(), ());
+                            let msg = serde_json::to_string(&msg).unwrap();
+                            recv_socket.send_to(msg.as_bytes(), peer_send_addr).await;
+
+                            tokio::time::sleep(Duration::from_secs(5)).await;
+                        }
+                    });
 
                     let socket = send_socket.clone();
 
@@ -291,6 +302,16 @@ impl TransmissionNetworkPortal {
                     let msg = serde_json::to_string(&msg)?;
 
                     recv_socket.send_to(msg.as_bytes(), peer_send_addr).await?;
+
+                    tokio::spawn(async move {
+                        loop {
+                            let msg = Message::new("connection/keep-alive".to_string(), ());
+                            let msg = serde_json::to_string(&msg).unwrap();
+                            recv_socket.send_to(msg.as_bytes(), peer_send_addr).await;
+
+                            tokio::time::sleep(Duration::from_secs(5)).await;
+                        }
+                    });
 
                     let socket = send_socket.clone();
 

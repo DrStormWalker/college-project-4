@@ -130,6 +130,10 @@ impl<'a> System<'a> for NetworkHandler {
         }
 
         while let Ok(msg) = self.channels.1.try_recv() {
+            if msg.msg_type != "entity/update" {
+                continue;
+            }
+
             let msg: UpdateEntity = serde_json::from_value(msg.data).unwrap();
             for (mut position, mut velocity, mut acceleration, network_recv) in (
                 &mut position,
