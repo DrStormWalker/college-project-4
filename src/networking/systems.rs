@@ -208,15 +208,18 @@ impl TransmissionNetworkPortal {
 
                     recv_socket.send_to(msg.as_bytes(), peer_send_addr).await?;
 
-                    tokio::spawn(async move {
-                        loop {
-                            let msg = Message::new("connection/keep-alive".to_string(), ());
-                            let msg = serde_json::to_string(&msg).unwrap();
-                            recv_socket.send_to(msg.as_bytes(), peer_send_addr).await;
+                    {
+                        let recv_socket = recv_socket.clone();
+                        tokio::spawn(async move {
+                            loop {
+                                let msg = Message::new("connection/keep-alive".to_string(), ());
+                                let msg = serde_json::to_string(&msg).unwrap();
+                                recv_socket.send_to(msg.as_bytes(), peer_send_addr).await;
 
-                            tokio::time::sleep(Duration::from_secs(5)).await;
-                        }
-                    });
+                                tokio::time::sleep(Duration::from_secs(5)).await;
+                            }
+                        });
+                    }
 
                     let socket = send_socket.clone();
 
@@ -303,16 +306,18 @@ impl TransmissionNetworkPortal {
 
                     recv_socket.send_to(msg.as_bytes(), peer_send_addr).await?;
 
-                    tokio::spawn(async move {
-                        loop {
-                            let msg = Message::new("connection/keep-alive".to_string(), ());
-                            let msg = serde_json::to_string(&msg).unwrap();
-                            recv_socket.send_to(msg.as_bytes(), peer_send_addr).await;
+                    {
+                        let recv_socket = recv_socket.clone();
+                        tokio::spawn(async move {
+                            loop {
+                                let msg = Message::new("connection/keep-alive".to_string(), ());
+                                let msg = serde_json::to_string(&msg).unwrap();
+                                recv_socket.send_to(msg.as_bytes(), peer_send_addr).await;
 
-                            tokio::time::sleep(Duration::from_secs(5)).await;
-                        }
-                    });
-
+                                tokio::time::sleep(Duration::from_secs(5)).await;
+                            }
+                        });
+                    }
                     let socket = send_socket.clone();
 
                     let (tx, mut rx) = mpsc::channel::<Message>(100);
