@@ -9,25 +9,7 @@ use crate::{
     util::Vec2,
 };
 
-use super::systems::{Message, RoomConnectionType, TransmissionNetworkPortal};
-
-pub struct Incrementor {
-    value: usize,
-}
-impl Incrementor {
-    pub fn new() -> Self {
-        Self { value: 1 }
-    }
-}
-impl Iterator for Incrementor {
-    type Item = usize;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let current = self.value;
-        self.value += 1;
-        Some(current)
-    }
-}
+use super::systems::{Message, TransmissionNetworkPortal};
 
 #[derive(Debug, PartialEq)]
 pub struct NetworkSend {
@@ -52,6 +34,19 @@ impl NetworkRecv {
     }
 }
 impl Component for NetworkRecv {
+    type Storage = VecStorage<Self>;
+}
+
+#[derive(Debug, PartialEq)]
+pub struct NetworkStatic {
+    network_id: usize,
+}
+impl NetworkStatic {
+    pub fn new(network_id: usize) -> Self {
+        Self { network_id }
+    }
+}
+impl Component for NetworkStatic {
     type Storage = VecStorage<Self>;
 }
 

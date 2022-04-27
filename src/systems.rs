@@ -226,12 +226,15 @@ impl<'a> System<'a> for FloorColliderSystem {
 
                 if let Some(n) = intersection {
                     if n.magnitude() != 0.0 {
+                        //let n = -n;
                         let norm_n = n.normalize();
                         let new_vel = norm_n * vel.0.dot(&norm_n);
                         let new_accel = norm_n * accel.0.dot(&norm_n);
                         let norm = obj_pos.0 - floor_pos.0;
                         let norm = norm_n * norm.dot(&norm_n);
                         let norm = norm.normalize();
+
+                        println!("norm: {:?}", norm);
 
                         vel.0 -= new_vel;
                         accel.0 -= new_accel;
@@ -248,6 +251,19 @@ impl<'a> System<'a> for FloorColliderSystem {
                     }
                 }
             }
+        }
+    }
+}
+
+pub struct PlayerDebug;
+impl<'a> System<'a> for PlayerDebug {
+    type SystemData = (ReadStorage<'a, PlayerController>, ReadStorage<'a, Position>);
+
+    fn run(&mut self, data: Self::SystemData) {
+        let (player, position) = data;
+
+        for (position, _) in (&position, &player).join() {
+            println!("{:?}", position);
         }
     }
 }

@@ -9,13 +9,14 @@ use crate::components::{
     Acceleration, Collider, FloorCollider, FloorCollision, Grounded, PlayerController,
     RenderDescriptor, Velocity,
 };
-use crate::networking::components::{NetworkHandler, NetworkRecv, NetworkSend};
+use crate::networking::components::{NetworkHandler, NetworkRecv, NetworkSend, NetworkStatic};
 use crate::networking::systems::{Message, TransmissionNetworkPortal};
 use crate::resources::{GameCamera, GameState, SystemState};
+use crate::spawner;
 use crate::systems::{
-    EntityMovementSystem, EventSystem, FloorColliderSystem, PlayerMovementSystem,
+    EntityMovementSystem, EventSystem, FloorColliderSystem, PlayerDebug, PlayerMovementSystem,
 };
-use crate::util::{Rect, Vec2};
+use crate::util::{Incrementor, Rect, Vec2};
 use crate::NetworkMode;
 use crate::{components::Position, systems::RenderSystem, Args};
 use specs::{Builder, DispatcherBuilder, World, WorldExt};
@@ -41,6 +42,9 @@ pub async fn game_main(
 
     world.register::<FloorCollision>();
     world.register::<FloorCollider>();
+    world.register::<NetworkStatic>();
+    world.register::<NetworkSend>();
+    world.register::<NetworkRecv>();
 
     canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
@@ -49,6 +53,7 @@ pub async fn game_main(
     let event_pump = sdl_context.event_pump()?;
 
     let mut dispatcher = DispatcherBuilder::new()
+        .with(PlayerDebug {}, "sys_player_debug", &[])
         .with(PlayerMovementSystem {}, "sys_player_movement", &[])
         .with(EntityMovementSystem {}, "sys_entity_movement", &[])
         .with(
@@ -74,124 +79,58 @@ pub async fn game_main(
         Rect::new(Vec2::new(-16.0, 12.0), Vec2::new(16.0, -12.0)),
     ));
 
-    const PLAYER_WIDTH: f32 = 1.0;
-    const PLAYER_HEIGHT: f32 = 1.0;
+    // Spawn objects
 
-    const ACCELERATION_DUE_TO_GRAVITY: f32 = -130.0;
+    let mut ids = Incrementor::new();
 
-    world
-        .create_entity()
-        .with(Position(Vec2::new(0.0, 0.0)))
-        .with(Velocity(Vec2::new(0.0, 0.0)))
-        .with(Acceleration(Vec2::new(0.0, ACCELERATION_DUE_TO_GRAVITY)))
-        .with(RenderDescriptor::new(
-            Rect::from_centre(Vec2::new(0.0, 0.0), PLAYER_WIDTH, PLAYER_HEIGHT),
-            Color::RGB(255, 0, 0),
-        ))
-        .with(Grounded(true))
-        .with(PlayerController {})
-        .with(Collider::new(Rect::from_centre(
-            Vec2::new(0.0, 0.0),
-            PLAYER_WIDTH,
-            PLAYER_HEIGHT,
-        )))
-        .with(FloorCollision {})
-        .with(NetworkSend::new(match args.networking {
-            NetworkMode::None | NetworkMode::Host => 0,
-            NetworkMode::Client => 1,
-        }))
-        .build();
+    spawner::create_player(&mut world, ids.next().unwrap(), Vec2::new(0.0, 0.0));
 
-    match args.networking {
-        NetworkMode::Host | NetworkMode::Client => {
-            let network = world
-                .create_entity()
-                .with(Position(Vec2::new(0.0, 0.0)))
-                .with(Velocity(Vec2::new(0.0, 0.0)))
-                .with(Acceleration(Vec2::new(0.0, ACCELERATION_DUE_TO_GRAVITY)))
-                .with(RenderDescriptor::new(
-                    Rect::from_centre(Vec2::new(0.0, 0.0), PLAYER_WIDTH, PLAYER_HEIGHT),
-                    Color::RGB(0, 0, 255),
-                ))
-                .with(Collider::new(Rect::from_centre(
-                    Vec2::new(0.0, 0.0),
-                    PLAYER_WIDTH,
-                    PLAYER_HEIGHT,
-                )))
-                .with(FloorCollision {})
-                .with(NetworkRecv::new(match args.networking {
-                    NetworkMode::Host => 1,
-                    NetworkMode::Client => 0,
-                    NetworkMode::None => panic!("Should not reach here"),
-                }))
-                .build();
-        }
-        _ => {}
-    }
+    // Floor
+    spawner::create_wall(
+        &mut world,
+        ids.next().unwrap(),
+        Vec2::new(-16.0, -10.0),
+        32.0,
+        4.0,
+    );
 
-    world
-        .create_entity()
-        .with(Position(Vec2::new(-16.0, -10.0)))
-        .with(RenderDescriptor::new(
-            Rect::from_size(Vec2::new(0.0, 0.0), 32.0, 2.0),
-            Color::RGB(0, 255, 0),
-        ))
-        .with(Collider::new(Rect::from_size(
-            Vec2::new(0.0, 0.0),
-            32.0,
-            2.0,
-        )))
-        .with(FloorCollider {})
-        .build();
+    // Platform
+    spawner::create_wall(
+        &mut world,
+        ids.next().unwrap(),
+        Vec2::new(-10.0, -5.0),
+        8.0,
+        1.0,
+    );
 
-    world
-        .create_entity()
-        .with(Position(Vec2::new(-10.0, -5.0)))
-        .with(RenderDescriptor::new(
-            Rect::from_size(Vec2::new(0.0, 0.0), 8.0, 1.0),
-            Color::RGB(0, 255, 0),
-        ))
-        .with(Collider::new(Rect::from_size(
-            Vec2::new(0.0, 0.0),
-            8.0,
-            1.0,
-        )))
-        .with(FloorCollider {})
-        .build();
+    // Left wall
+    spawner::create_wall(
+        &mut world,
+        ids.next().unwrap(),
+        Vec2::new(-16.5, 12.0),
+        0.5,
+        24.0,
+    );
 
-    world
-        .create_entity()
-        .with(Position(Vec2::new(-16.0, 12.0)))
-        .with(RenderDescriptor::new(
-            Rect::from_size(Vec2::new(0.0, 0.0), 0.5, 24.0),
-            Color::RGB(0, 255, 0),
-        ))
-        .with(Collider::new(Rect::from_size(
-            Vec2::new(0.0, 0.0),
-            0.5,
-            24.0,
-        )))
-        .with(FloorCollider {})
-        .build();
+    // Right wall
+    spawner::create_wall(
+        &mut world,
+        ids.next().unwrap(),
+        Vec2::new(16.0, 12.0),
+        0.5,
+        24.0,
+    );
 
-    world
-        .create_entity()
-        .with(Position(Vec2::new(15.5, 12.0)))
-        .with(RenderDescriptor::new(
-            Rect::from_size(Vec2::new(0.0, 0.0), 0.5, 24.0),
-            Color::RGB(0, 255, 0),
-        ))
-        .with(Collider::new(Rect::from_size(
-            Vec2::new(0.0, 0.0),
-            0.5,
-            24.0,
-        )))
-        .with(FloorCollider {})
-        .build();
+    // Start game loop
 
     let mut start = Instant::now();
 
+    let frame_interval = Duration::from_secs_f64(1.0 / 120.0);
+    let mut frame_interval = time::interval(frame_interval);
+    frame_interval.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
+
     loop {
+        frame_interval.tick().await;
         let now = Instant::now();
         let delta_t = (now - start).as_secs_f32();
         start = now;
@@ -202,6 +141,7 @@ pub async fn game_main(
         }
 
         dispatcher.dispatch(&mut world);
+
         {
             let game_state = world.read_resource::<GameState>();
             if let SystemState::Quit = game_state.system_state {
@@ -209,7 +149,6 @@ pub async fn game_main(
             }
         }
         world.maintain();
-        time::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
 
     Ok(())

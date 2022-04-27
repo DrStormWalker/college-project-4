@@ -107,6 +107,9 @@ class Clients:
 
     def __contains__(self, item):
         return item in self.clients
+    
+    def __len__(self):
+        return len(self.clients)
 
     def __getitem__(self, item: ClientId) -> Client:
         return self.clients[item]
@@ -259,7 +262,7 @@ def client_handler(connection: socket.socket, ip: str, port: int, max_buffer_siz
         client_id = generate_client_id()
 
     rx, tx = Pipe()
-
+    
     client = Client(
         id=client_id,
         tx=tx,

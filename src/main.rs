@@ -6,6 +6,7 @@ mod util;
 mod game;
 mod networking;
 mod sat;
+mod spawner;
 
 extern crate sdl2;
 extern crate serde;

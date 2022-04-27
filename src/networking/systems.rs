@@ -208,19 +208,6 @@ impl TransmissionNetworkPortal {
 
                     recv_socket.send_to(msg.as_bytes(), peer_send_addr).await?;
 
-                    {
-                        let recv_socket = recv_socket.clone();
-                        tokio::spawn(async move {
-                            loop {
-                                let msg = Message::new("connection/keep-alive".to_string(), ());
-                                let msg = serde_json::to_string(&msg).unwrap();
-                                recv_socket.send_to(msg.as_bytes(), peer_send_addr).await;
-
-                                tokio::time::sleep(Duration::from_secs(5)).await;
-                            }
-                        });
-                    }
-
                     let socket = send_socket.clone();
 
                     let (tx, mut rx) = mpsc::channel::<Message>(100);
@@ -229,10 +216,9 @@ impl TransmissionNetworkPortal {
                         while let Some(val) = rx.recv().await {
                             let msg = serde_json::to_string(&val).unwrap();
 
-                            socket
-                                .send_to(msg.as_bytes(), peer_recv_addr)
-                                .await
-                                .unwrap_or_else(print_err);
+                            if let Err(e) = socket.send_to(msg.as_bytes(), peer_recv_addr).await {
+                                println!("Error (233): {}", e);
+                            }
                         }
                     });
 
@@ -240,27 +226,19 @@ impl TransmissionNetworkPortal {
                         let mut rx = broadcast_tx.subscribe();
                         let tx = tx.clone();
                         tokio::spawn(async move {
-                            while let Ok(msg) = rx.recv().await {
-                                tx.send(msg).await;
+                            loop {
+                                if let Ok(msg) = rx.recv().await {
+                                    println!("Sending message");
+                                    if let Err(e) = tx.send(msg).await {
+                                        println!("Error: {}", e);
+                                    }
+                                }
                             }
                         });
                     }
 
                     tx
                 };
-
-                {
-                    let recv = recv_socket.clone();
-
-                    tokio::spawn(async move {
-                        let mut buf = [0u8; 4096];
-                        while let Ok((size, addr)) = recv.recv_from(&mut buf).await {
-                            let msg = String::from_utf8_lossy(&buf[..size]);
-
-                            buf = [0u8; 4096];
-                        }
-                    });
-                }
 
                 this.room_connection = Some(RoomConnection {
                     room_id: msg.room_id,
@@ -306,18 +284,6 @@ impl TransmissionNetworkPortal {
 
                     recv_socket.send_to(msg.as_bytes(), peer_send_addr).await?;
 
-                    {
-                        let recv_socket = recv_socket.clone();
-                        tokio::spawn(async move {
-                            loop {
-                                let msg = Message::new("connection/keep-alive".to_string(), ());
-                                let msg = serde_json::to_string(&msg).unwrap();
-                                recv_socket.send_to(msg.as_bytes(), peer_send_addr).await;
-
-                                tokio::time::sleep(Duration::from_secs(5)).await;
-                            }
-                        });
-                    }
                     let socket = send_socket.clone();
 
                     let (tx, mut rx) = mpsc::channel::<Message>(100);
@@ -337,8 +303,10 @@ impl TransmissionNetworkPortal {
                         let mut rx = broadcast_tx.subscribe();
                         let tx = tx.clone();
                         tokio::spawn(async move {
-                            while let Ok(msg) = rx.recv().await {
-                                tx.send(msg).await;
+                            loop {
+                                if let Ok(msg) = rx.recv().await {
+                                    tx.send(msg).await;
+                                }
                             }
                         });
                     }
@@ -447,9 +415,11 @@ impl TransmissionNetworkPortal {
                         }
                     };
 
-                    Self::handle_rendezvous_message(this.clone(), msg, tx.clone())
-                        .await
-                        .unwrap_or_else(print_err);
+                    if let Err(e) =
+                        Self::handle_rendezvous_message(this.clone(), msg, tx.clone()).await
+                    {
+                        println!("Error 452: {}", e);
+                    }
 
                     buf = [0u8; 4096];
                 }
